@@ -32,12 +32,27 @@
   .menu-btn:hover { opacity: 0.82; }
   #mbResume { background: #e63; color: #fff; }
   #mbReset  { background: #333; color: #ddd; border: 1px solid #555; }
+  #menuMapLabel { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: 2px; margin-top: 8px; }
+  #menuMapBtns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .menu-map-btn { flex: 1; padding: 8px 0; font-family: monospace; font-size: 13px; font-weight: bold; background: #333; border: 1px solid #555; border-radius: 7px; color: #ccc; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .menu-map-btn:hover { background: #444; color: #fff; }
+  .menu-map-btn.active { background: #e63; color: #fff; border-color: #e63; }
+  #mapbar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 5; }
+  .map-btn { padding: 5px 14px; font-family: monospace; font-size: 13px; font-weight: bold; background: rgba(0,0,0,0.6); border: 1px solid #555; border-radius: 6px; color: #ccc; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .map-btn:hover { background: rgba(80,80,80,0.8); color: #fff; }
+  .map-btn.active { background: #e63; color: #fff; border-color: #e63; }
 </style>
 </head>
 <body>
 <div id="gameWrapper">
   <canvas id="c"></canvas>
   <button id="menuBtn" title="Menu (Esc)"><span></span><span></span><span></span></button>
+  <div id="mapbar">
+    <button class="map-btn active" onclick="switchMap(0)">Classic</button>
+    <button class="map-btn" onclick="switchMap(1)">Oval Sprint</button>
+    <button class="map-btn" onclick="switchMap(2)">City Block</button>
+    <button class="map-btn" onclick="switchMap(3)">Desert Oval</button>
+  </div>
   <div id="speedDisplay"><span id="speedVal">0</span><span id="speedUnit">km/h</span></div>
   <div id="lapDisplay"><span id="lapDisplayVal">0/5</span><span id="lapDisplayUnit">LAP</span><span id="lapTimeSep">|</span><span id="lapTimeVal">0.0s</span></div>
   <div id="msg"></div>
@@ -47,6 +62,13 @@
       <h2>PAUSED</h2>
       <button class="menu-btn" id="mbResume">Resume</button>
       <button class="menu-btn" id="mbReset">Restart Race</button>
+      <div id="menuMapLabel">SELECT MAP</div>
+      <div id="menuMapBtns">
+        <button class="menu-map-btn active" onclick="switchMap(0)">Classic</button>
+        <button class="menu-map-btn" onclick="switchMap(1)">Oval Sprint</button>
+        <button class="menu-map-btn" onclick="switchMap(2)">City Block</button>
+        <button class="menu-map-btn" onclick="switchMap(3)">Desert Oval</button>
+      </div>
     </div>
   </div>
 </div>
@@ -63,15 +85,98 @@ const W = canvas.width, H = canvas.height;
 const TRACK_WIDTH = 80;
 
 // ── TRACK DEFINITION ──────────────────────────────────────────────────────────
-const trackPoints = [
-  {x:450,y:560},{x:200,y:560},{x:100,y:480},{x:80,y:340},
-  {x:140,y:220},{x:260,y:150},{x:400,y:130},{x:500,y:90},
-  {x:650,y:100},{x:760,y:170},{x:800,y:300},{x:760,y:430},
-  {x:680,y:520},{x:580,y:560},
-];
-const obstaclePlacements = [
-  [0.08,0.45],[0.18,-0.40],[0.32,0.35],
-  [0.47,-0.38],[0.60,0.42],[0.74,-0.35],[0.88,0.30],
+let trackPoints, obstaclePlacements;
+let currentMapIndex = 0;
+
+const MAPS = [
+  {
+    name: 'Classic',
+    trackPoints: [
+      {x:450,y:560},{x:200,y:560},{x:100,y:480},{x:80,y:340},
+      {x:140,y:220},{x:260,y:150},{x:400,y:130},{x:500,y:90},
+      {x:650,y:100},{x:760,y:170},{x:800,y:300},{x:760,y:430},
+      {x:680,y:520},{x:580,y:560},
+    ],
+    obstaclePlacements: [
+      [0.08,0.45],[0.18,-0.40],[0.32,0.35],
+      [0.47,-0.38],[0.60,0.42],[0.74,-0.35],[0.88,0.30],
+    ],
+  },
+  {
+    name: 'Oval Sprint',
+    trackPoints: [
+      {x:450,y:80},{x:620,y:85},{x:760,y:110},{x:840,y:200},
+      {x:850,y:330},{x:820,y:450},{x:720,y:530},{x:560,y:570},
+      {x:380,y:570},{x:220,y:545},{x:100,y:470},{x:65,y:340},
+      {x:75,y:210},{x:160,y:130},{x:290,y:90},
+    ],
+    obstaclePlacements: [
+      [0.05,0.40],[0.20,-0.38],[0.35,0.42],
+      [0.50,-0.35],[0.65,0.38],[0.82,-0.40],
+    ],
+  },
+  {
+    name: 'City Block',
+    // Diagonal corner approaches + chicane tips spaced >80px apart to avoid inner-path crossing
+    trackPoints: [
+      {x:230,y:115},  // start/finish
+      {x:680,y:115},  // top straight
+      {x:800,y:185},  // top-right corner (diagonal)
+      {x:820,y:258},  // right side upper
+      {x:748,y:288},  // right chicane entry (diagonal)
+      {x:682,y:310},  // right chicane top
+      {x:682,y:400},  // right chicane bottom  (90px gap > 80px track width)
+      {x:748,y:422},  // right chicane exit (diagonal)
+      {x:820,y:452},  // right side lower
+      {x:808,y:520},  // right side bottom
+      {x:718,y:578},  // bottom-right corner
+      {x:178,y:578},  // bottom straight
+      {x:88,y:520},   // bottom-left corner
+      {x:78,y:452},   // left side lower
+      {x:148,y:422},  // left chicane exit (diagonal)
+      {x:214,y:400},  // left chicane bottom
+      {x:214,y:310},  // left chicane top  (90px gap)
+      {x:148,y:288},  // left chicane entry (diagonal)
+      {x:78,y:258},   // left side upper
+      {x:100,y:185},  // top-left corner
+    ],
+    obstaclePlacements: [
+      [0.06,0.35],[0.18,-0.38],[0.32,0.40],
+      [0.48,-0.35],[0.62,0.38],[0.78,-0.40],[0.90,0.35],
+    ],
+  },
+  {
+    name: 'Desert Oval',
+    scrolling: true,
+    // Long oval: two ~1800px straights connected by smooth U-turns. World width ≈ 2620px.
+    trackPoints: [
+      {x:320,  y:175},  // 0: start/finish (top-left)
+      {x:900,  y:175},  // 1: top straight
+      {x:1500, y:175},  // 2
+      {x:2100, y:175},  // 3
+      {x:2340, y:182},  // 4: entering right U-turn
+      {x:2490, y:218},  // 5
+      {x:2570, y:278},  // 6
+      {x:2595, y:330},  // 7: rightmost tip
+      {x:2570, y:382},  // 8
+      {x:2490, y:442},  // 9
+      {x:2340, y:478},  // 10: exiting right U-turn
+      {x:1900, y:485},  // 11: bottom straight
+      {x:1300, y:485},  // 12
+      {x:700,  y:485},  // 13
+      {x:290,  y:478},  // 14: entering left U-turn
+      {x:120,  y:442},  // 15
+      {x:35,   y:382},  // 16
+      {x:10,   y:330},  // 17: leftmost tip
+      {x:35,   y:278},  // 18
+      {x:120,  y:218},  // 19
+    ],
+    obstaclePlacements: [
+      [0.05,0.40],[0.15,-0.38],[0.26,0.42],
+      [0.45,-0.35],[0.55,0.38],[0.65,-0.40],
+      [0.76,0.35],[0.88,-0.38],
+    ],
+  },
 ];
 
 // Seeded PRNG
@@ -114,12 +219,17 @@ function buildTrackPaths(pts) {
   return {outer, inner};
 }
 
-function buildBushes(pts) {
+function buildBushes(pts, scrolling) {
   const list = [];
   const rand = seededRand(42);
   const n = pts.length;
+  // Larger world bounds + more decorations for scrolling maps
+  const xMin = scrolling ? -600 : 20,  xMax = scrolling ? 5000 : 880;
+  const yMin = scrolling ? -300 : 20,  yMax = scrolling ? 1200 : 630;
+  const count1 = scrolling ? 88 : 22;
+  const count2 = scrolling ? 72 : 18;
   const outerOffsets = [110,130,155];
-  for (let k = 0; k < 22; k++) {
+  for (let k = 0; k < count1; k++) {
     const i = Math.floor(rand()*n);
     const a = pts[i], b = pts[(i+1)%n];
     const dx = b.x-a.x, dy = b.y-a.y;
@@ -127,10 +237,10 @@ function buildBushes(pts) {
     const nx = -dy/len, ny = dx/len;
     const off = outerOffsets[Math.floor(rand()*outerOffsets.length)];
     const bx = a.x+nx*off+(rand()-0.5)*20, by = a.y+ny*off+(rand()-0.5)*20;
-    if (bx>20&&bx<880&&by>20&&by<630) list.push({x:bx,y:by,r:10+rand()*10,shade:rand()});
+    if (bx>xMin&&bx<xMax&&by>yMin&&by<yMax) list.push({x:bx,y:by,r:10+rand()*10,shade:rand()});
   }
   const innerOffsets = [90,110,140];
-  for (let k = 0; k < 18; k++) {
+  for (let k = 0; k < count2; k++) {
     const i = Math.floor(rand()*n);
     const a = pts[i], b = pts[(i+1)%n];
     const dx = b.x-a.x, dy = b.y-a.y;
@@ -138,7 +248,7 @@ function buildBushes(pts) {
     const nx = -dy/len, ny = dx/len;
     const off = innerOffsets[Math.floor(rand()*innerOffsets.length)];
     const bx = a.x-nx*off+(rand()-0.5)*20, by = a.y-ny*off+(rand()-0.5)*20;
-    if (bx>20&&bx<880&&by>20&&by<630) list.push({x:bx,y:by,r:9+rand()*9,shade:rand()});
+    if (bx>xMin&&bx<xMax&&by>yMin&&by<yMax) list.push({x:bx,y:by,r:9+rand()*9,shade:rand()});
   }
   return list;
 }
@@ -155,31 +265,47 @@ function buildObstacles(placements, pts, n) {
   });
 }
 
-// ── INITIALISE TRACK DATA ─────────────────────────────────────────────────────
-const splinePts = computeSpline(trackPoints);
-const {outer: outerPts, inner: innerPts} = buildTrackPaths(splinePts);
-const NSPLINE = splinePts.length;
+// ── TRACK-DERIVED STATE ────────────────────────────────────────────────────────
+let splinePts, outerPts, innerPts, NSPLINE;
+let sfPt, sfDx, sfDy, sfLen, sfNx, sfNy;
+let finishA, finishB, checkpoints, obstacles, bushes;
+let camX = 0, camY = 0;
 
-const sfPt  = splinePts[0], sfPt2 = splinePts[1];
-const sfDx  = sfPt2.x - sfPt.x, sfDy = sfPt2.y - sfPt.y;
-const sfLen = Math.sqrt(sfDx*sfDx + sfDy*sfDy);
-const sfNx  = -sfDy / sfLen,     sfNy = sfDx / sfLen;
+function loadMap(index) {
+  currentMapIndex = index;
+  const map = MAPS[index];
+  trackPoints        = map.trackPoints;
+  obstaclePlacements = map.obstaclePlacements;
 
-const finishA = {x: sfPt.x + sfNx*(TRACK_WIDTH/2), y: sfPt.y + sfNy*(TRACK_WIDTH/2)};
-const finishB = {x: sfPt.x - sfNx*(TRACK_WIDTH/2), y: sfPt.y - sfNy*(TRACK_WIDTH/2)};
+  splinePts = computeSpline(trackPoints);
+  ({outer: outerPts, inner: innerPts} = buildTrackPaths(splinePts));
+  NSPLINE = splinePts.length;
 
-const checkpoints = [0.25, 0.5, 0.75, 0.875].map(frac => {
-  const i = Math.floor(frac * NSPLINE);
-  const a = splinePts[i], b = splinePts[(i+1) % NSPLINE];
-  const dx = b.x - a.x, dy = b.y - a.y;
-  const len = Math.sqrt(dx*dx + dy*dy) || 1;
-  const nx = -dy/len, ny = dx/len;
-  return {ax: a.x+nx*(TRACK_WIDTH/2+18), ay: a.y+ny*(TRACK_WIDTH/2+18),
-          bx: a.x-nx*(TRACK_WIDTH/2+18), by: a.y-ny*(TRACK_WIDTH/2+18), hit: false};
-});
+  sfPt = splinePts[0];
+  const sfPt2 = splinePts[1];
+  sfDx = sfPt2.x - sfPt.x; sfDy = sfPt2.y - sfPt.y;
+  sfLen = Math.sqrt(sfDx*sfDx + sfDy*sfDy);
+  sfNx = -sfDy / sfLen; sfNy = sfDx / sfLen;
 
-const obstacles = buildObstacles(obstaclePlacements, splinePts, NSPLINE);
-const bushes    = buildBushes(splinePts);
+  finishA = {x: sfPt.x + sfNx*(TRACK_WIDTH/2), y: sfPt.y + sfNy*(TRACK_WIDTH/2)};
+  finishB = {x: sfPt.x - sfNx*(TRACK_WIDTH/2), y: sfPt.y - sfNy*(TRACK_WIDTH/2)};
+
+  checkpoints = [0.25, 0.5, 0.75, 0.875].map(frac => {
+    const i = Math.floor(frac * NSPLINE);
+    const a = splinePts[i], b = splinePts[(i+1) % NSPLINE];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    const nx = -dy/len, ny = dx/len;
+    return {ax: a.x+nx*(TRACK_WIDTH/2+18), ay: a.y+ny*(TRACK_WIDTH/2+18),
+            bx: a.x-nx*(TRACK_WIDTH/2+18), by: a.y-ny*(TRACK_WIDTH/2+18), hit: false};
+  });
+
+  obstacles = buildObstacles(obstaclePlacements, splinePts, NSPLINE);
+  bushes    = buildBushes(splinePts, !!MAPS[index].scrolling);
+  camX = 0; camY = 0;
+}
+
+loadMap(0);
 
 // Returns true if (px,py) is within TRACK_WIDTH/2 of the spline centre line
 function pointOnTrack(px, py) {
@@ -263,6 +389,17 @@ function resetGame() {
   checkpoints.forEach(c => c.hit = false);
   car.steerAmount = 0;
   document.getElementById('msg').style.display = 'none';
+  if (MAPS[currentMapIndex].scrolling) { camX = car.x - W/2; camY = car.y - H/2; }
+}
+
+function switchMap(index) {
+  loadMap(index);
+  resetGame();
+  closeMenu();
+  document.querySelectorAll('.map-btn').forEach((btn, i) =>
+    btn.classList.toggle('active', i === index));
+  document.querySelectorAll('.menu-map-btn').forEach((btn, i) =>
+    btn.classList.toggle('active', i === index));
 }
 
 function checkLapCross() {
@@ -393,14 +530,141 @@ function update() {
   spawnParticles();
 }
 
-function drawTrack() {
-  // --- ENTITY 1: Ground ---
-  ctx.fillStyle = '#3a7d44';
+// Deterministic window-lit hash (no flicker)
+function winLit(bx, by, wx, wy) {
+  const n = Math.sin(bx * 12.7 + by * 31.1 + wx * 5.3 + wy * 17.9) * 43758.5453;
+  return (n - Math.floor(n)) > 0.38;
+}
+
+function drawCityBackground() {
+  // Pavement base
+  ctx.fillStyle = '#1c1c1c';
   ctx.fillRect(0, 0, W, H);
 
-  // --- ENTITY 2: Track (dirt road donut) ---
-  // outerPts traces the inner hole, innerPts traces the outer ring
-  // (normals are inverted for this CCW loop), so use evenodd to cut the hole out.
+  // Sidewalk grid lines (subtle)
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let gx = 0; gx < W; gx += 60) { ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+  for (let gy = 0; gy < H; gy += 60) { ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+
+  // Building blocks — placed in interior and exterior of the City Block track
+  const buildings = [
+    // Interior: top strip
+    {x:162, y:158, w:566, h:72},
+    // Interior: bottom strip
+    {x:162, y:452, w:566, h:68},
+    // Interior: central superblock
+    {x:300, y:268, w:288, h:112},
+    // Interior: left bay (between left peninsula roads)
+    {x:158, y:268, w:112, h:112},
+    // Interior: right bay (between right peninsula roads)
+    {x:668, y:268, w:82, h:112},
+    // Exterior: top-left corner
+    {x:0,   y:0,   w:148, h:92},
+    // Exterior: top strip
+    {x:172, y:0,   w:488, h:68},
+    // Exterior: top-right corner
+    {x:762, y:0,   w:138, h:92},
+    // Exterior: bottom-left corner
+    {x:0,   y:562, w:148, h:88},
+    // Exterior: bottom strip
+    {x:172, y:604, w:488, h:46},
+    // Exterior: bottom-right corner
+    {x:762, y:562, w:138, h:88},
+    // Exterior: left side top
+    {x:0,   y:102, w:56,  h:152},
+    // Exterior: left side bottom
+    {x:0,   y:422, w:56,  h:132},
+    // Exterior: right side top
+    {x:848, y:102, w:52,  h:152},
+    // Exterior: right side bottom
+    {x:848, y:422, w:52,  h:132},
+  ];
+
+  for (const b of buildings) {
+    // Drop shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(b.x+5, b.y+5, b.w, b.h);
+
+    // Building body — varied shade per building
+    const shade = 26 + ((b.x * 7 + b.y * 13) % 18);
+    ctx.fillStyle = `rgb(${shade},${shade},${shade+2})`;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+
+    // Rooftop edge highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(b.x, b.y, b.w, 3);
+    ctx.fillRect(b.x, b.y, 3, b.h);
+
+    // Windows (lit = warm yellow, unlit = dark)
+    const ww = 7, wh = 6, gapX = 6, gapY = 5;
+    for (let wx = b.x + 9; wx + ww <= b.x + b.w - 6; wx += ww + gapX) {
+      for (let wy = b.y + 9; wh <= b.y + b.h - wy - 6; wy += wh + gapY) {
+        if (winLit(b.x, b.y, wx, wy)) {
+          ctx.fillStyle = 'rgba(255,220,120,0.55)';
+        } else {
+          ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        }
+        ctx.fillRect(wx, wy, ww, wh);
+      }
+    }
+  }
+}
+
+function drawDesertBackground() {
+  // Sandy base — covers entire visible world area
+  ctx.fillStyle = '#D4B080';
+  ctx.fillRect(camX - 10, camY - 10, W + 20, H + 20);
+
+  // Sand ripple lines (subtle horizontal waves, world-anchored so they scroll)
+  ctx.strokeStyle = 'rgba(180,135,60,0.28)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([50, 18]);
+  const startY = Math.floor(camY / 24) * 24;
+  for (let gy = startY; gy < camY + H + 24; gy += 24) {
+    ctx.beginPath();
+    ctx.moveTo(camX, gy);
+    ctx.lineTo(camX + W, gy);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Sparse sand dune shading blobs (deterministic, world-anchored)
+  const cellSize = 120;
+  const startCX = Math.floor(camX / cellSize) - 1;
+  const startCY = Math.floor(camY / cellSize) - 1;
+  for (let cx = startCX; cx < startCX + W / cellSize + 2; cx++) {
+    for (let cy = startCY; cy < startCY + H / cellSize + 2; cy++) {
+      const h = Math.sin(cx * 31.7 + cy * 17.3) * 43758.5453;
+      const r = h - Math.floor(h);
+      if (r > 0.72) {
+        const wx = cx * cellSize + (r * 80 - 40);
+        const wy = cy * cellSize + (Math.sin(cx * 7 + cy * 13) * 0.5 + 0.5) * cellSize;
+        const rad = 18 + r * 30;
+        ctx.fillStyle = `rgba(195,155,75,${0.12 + r * 0.1})`;
+        ctx.beginPath();
+        ctx.ellipse(wx, wy, rad * 2.5, rad * 0.7, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+function drawTrack() {
+  const isCity   = currentMapIndex === 2;
+  const isDesert = currentMapIndex === 3;
+
+  // --- ENTITY 1: Ground ---
+  if (isCity) {
+    drawCityBackground();
+  } else if (isDesert) {
+    drawDesertBackground();
+  } else {
+    ctx.fillStyle = '#3a7d44';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // --- ENTITY 2: Track road surface ---
   ctx.beginPath();
   ctx.moveTo(innerPts[0].x, innerPts[0].y);
   for (const p of innerPts) ctx.lineTo(p.x, p.y);
@@ -408,33 +672,62 @@ function drawTrack() {
   ctx.moveTo(outerPts[0].x, outerPts[0].y);
   for (const p of outerPts) ctx.lineTo(p.x, p.y);
   ctx.closePath();
-  ctx.fillStyle = '#C49A5A';
+  ctx.fillStyle = isCity ? '#444' : isDesert ? '#B87B38' : '#C49A5A';
   ctx.fill('evenodd');
 
-  // Dirt texture streaks on the track
-  ctx.strokeStyle = 'rgba(100,60,20,0.25)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([8, 18]);
   const sn = splinePts.length;
-  for (let i = 0; i < sn; i++) {
-    const a = splinePts[i];
-    const b = splinePts[(i+1)%sn];
-    const ddx = b.x-a.x, ddy = b.y-a.y;
-    const dl = Math.sqrt(ddx*ddx+ddy*ddy)||1;
-    const dnx = -ddy/dl, dny = ddx/dl;
-    for (const off of [-16, 16]) {
-      ctx.beginPath();
-      ctx.moveTo(a.x+dnx*off, a.y+dny*off);
-      ctx.lineTo(b.x+dnx*off, b.y+dny*off);
-      ctx.stroke();
+  if (isCity) {
+    // Asphalt texture: subtle concrete speckle strips
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 22]);
+    for (let i = 0; i < sn; i++) {
+      const a = splinePts[i], b = splinePts[(i+1)%sn];
+      const ddx = b.x-a.x, ddy = b.y-a.y;
+      const dl = Math.sqrt(ddx*ddx+ddy*ddy)||1;
+      const dnx = -ddy/dl, dny = ddx/dl;
+      for (const off of [-18, -6, 6, 18]) {
+        ctx.beginPath();
+        ctx.moveTo(a.x+dnx*off, a.y+dny*off);
+        ctx.lineTo(b.x+dnx*off, b.y+dny*off);
+        ctx.stroke();
+      }
     }
+    ctx.setLineDash([]);
+  } else {
+    // Dirt texture streaks
+    ctx.strokeStyle = 'rgba(100,60,20,0.25)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 18]);
+    for (let i = 0; i < sn; i++) {
+      const a = splinePts[i], b = splinePts[(i+1)%sn];
+      const ddx = b.x-a.x, ddy = b.y-a.y;
+      const dl = Math.sqrt(ddx*ddx+ddy*ddy)||1;
+      const dnx = -ddy/dl, dny = ddx/dl;
+      for (const off of [-16, 16]) {
+        ctx.beginPath();
+        ctx.moveTo(a.x+dnx*off, a.y+dny*off);
+        ctx.lineTo(b.x+dnx*off, b.y+dny*off);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
   }
-  ctx.setLineDash([]);
 
   // Track edge markers
-  ctx.strokeStyle = '#5a3010';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([20, 15]);
+  if (isCity) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+  } else if (isDesert) {
+    ctx.strokeStyle = '#e07820';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([18, 12]);
+  } else {
+    ctx.strokeStyle = '#5a3010';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([20, 15]);
+  }
   ctx.beginPath();
   ctx.moveTo(innerPts[0].x, innerPts[0].y);
   for (const p of innerPts) ctx.lineTo(p.x, p.y);
@@ -448,7 +741,7 @@ function drawTrack() {
   ctx.setLineDash([]);
 
   // Center dashed line
-  ctx.strokeStyle = 'rgba(200,150,80,0.45)';
+  ctx.strokeStyle = isCity ? 'rgba(255,220,0,0.7)' : isDesert ? 'rgba(255,255,255,0.55)' : 'rgba(200,150,80,0.45)';
   ctx.lineWidth = 2;
   ctx.setLineDash([15, 20]);
   ctx.beginPath();
@@ -464,7 +757,6 @@ function drawTrack() {
   const lx2 = sfPt.x - sfNx*(TRACK_WIDTH/2);
   const ly2 = sfPt.y - sfNy*(TRACK_WIDTH/2);
 
-  // Checkered start/finish
   ctx.save();
   ctx.translate(lx1, ly1);
   const ang = Math.atan2(ly2-ly1, lx2-lx1);
@@ -483,7 +775,41 @@ function drawTrack() {
 
 
 function drawBushes() {
+  if (currentMapIndex === 2) return;
   for (const b of bushes) {
+    if (currentMapIndex === 3) {
+      // Desert: cacti (shade < 0.55) or rocks (shade >= 0.55)
+      if (b.shade < 0.55) {
+        // Cactus (top-down: green circle with spines)
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(b.x+2, b.y+3, b.r+1, b.r*0.7, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#3d6e2e';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#52943d';
+        ctx.beginPath(); ctx.arc(b.x-b.r*0.25, b.y-b.r*0.25, b.r*0.55, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        for (let a = 0; a < Math.PI*2; a += Math.PI/4) {
+          ctx.beginPath();
+          ctx.arc(b.x+Math.cos(a)*b.r*0.85, b.y+Math.sin(a)*b.r*0.85, 0.9, 0, Math.PI*2);
+          ctx.fill();
+        }
+      } else {
+        // Rock
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(b.x+3, b.y+4, b.r+2, b.r*0.7, 0, 0, Math.PI*2);
+        ctx.fill();
+        const g = Math.floor(105 + b.shade * 45);
+        ctx.fillStyle = `rgb(${g+18},${g+5},${g-10})`;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = `rgb(${g+35},${g+20},${g+5})`;
+        ctx.beginPath(); ctx.arc(b.x-b.r*0.25, b.y-b.r*0.28, b.r*0.58, 0, Math.PI*2); ctx.fill();
+      }
+      continue;
+    }
+
     // Shadow
     ctx.beginPath();
     ctx.ellipse(b.x+3, b.y+4, b.r, b.r*0.65, 0, 0, Math.PI*2);
@@ -513,86 +839,140 @@ function drawBushes() {
 
 
 function drawObstacles() {
-  for (const o of obstacles) {
-    const logR = o.r;           // radius (half-width) of log
-    const logHalfLen = logR * 2.8; // half-length of log
-
-    ctx.save();
-    ctx.translate(o.x, o.y);
-    // Logs lie across the road (perpendicular to track direction)
-    ctx.rotate(o.angle + Math.PI / 2);
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath();
-    ctx.ellipse(3, 5, logHalfLen + 2, logR + 1, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Log body
-    ctx.fillStyle = '#6B3E1E';
-    ctx.beginPath();
-    ctx.roundRect(-logHalfLen, -logR, logHalfLen * 2, logR * 2, logR);
-    ctx.fill();
-
-    // Lighter bark highlight along top
-    ctx.fillStyle = '#8B5A2B';
-    ctx.beginPath();
-    ctx.roundRect(-logHalfLen + 2, -logR + 2, logHalfLen * 2 - 4, logR * 2 - 4, logR - 2);
-    ctx.fill();
-
-    // Bark grain lines
-    ctx.strokeStyle = 'rgba(40,18,5,0.30)';
-    ctx.lineWidth = 1;
-    for (let g = -logHalfLen + logR + 4; g < logHalfLen - logR - 2; g += 5) {
+  if (currentMapIndex === 2) {
+    // City map: parked cars
+    const CAR_COLORS = ['#c0392b','#2471a3','#7f8c8d','#d4ac0d','#1e8449','#7d3c98','#ca6f1e'];
+    for (let idx = 0; idx < obstacles.length; idx++) {
+      const o = obstacles[idx];
+      const cw = o.r * 2.4;
+      const ch = o.r * 4.2;
+      ctx.save();
+      ctx.translate(o.x, o.y);
+      ctx.rotate(o.angle + Math.PI / 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
       ctx.beginPath();
-      ctx.moveTo(g, -logR + 3);
-      ctx.lineTo(g, logR - 3);
-      ctx.stroke();
-    }
-
-    // End caps (cross-section rings)
-    for (const ex of [-logHalfLen + logR, logHalfLen - logR]) {
-      // Dark outer ring
-      ctx.beginPath();
-      ctx.arc(ex, 0, logR - 1, 0, Math.PI * 2);
-      ctx.fillStyle = '#3D1F08';
+      ctx.ellipse(3, 4, cw/2+3, ch/2+3, 0, 0, Math.PI*2);
       ctx.fill();
-      // Mid ring
+      ctx.fillStyle = CAR_COLORS[idx % CAR_COLORS.length];
       ctx.beginPath();
-      ctx.arc(ex, 0, logR * 0.65, 0, Math.PI * 2);
+      ctx.roundRect(-cw/2, -ch/2, cw, ch, 3);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(150,220,255,0.75)';
+      ctx.fillRect(-cw/2+2, -ch/2+3, cw-4, ch*0.27);
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(-cw/2+2, -ch/2+3+ch*0.27, cw-4, ch*0.32);
+      ctx.fillStyle = 'rgba(150,220,255,0.55)';
+      ctx.fillRect(-cw/2+2, ch/2-3-ch*0.16, cw-4, ch*0.14);
+      ctx.fillStyle = '#111';
+      const frontY = -ch/2 + ch*0.18;
+      const rearY  =  ch/2 - ch*0.18;
+      ctx.fillRect(-cw/2-3, frontY-4, 3.5, 7);
+      ctx.fillRect( cw/2-0.5, frontY-4, 3.5, 7);
+      ctx.fillRect(-cw/2-3, rearY-4,  3.5, 7);
+      ctx.fillRect( cw/2-0.5, rearY-4,  3.5, 7);
+      ctx.restore();
+    }
+  } else {
+    // Classic / Oval Sprint: logs
+    for (const o of obstacles) {
+      const logR = o.r;
+      const logHalfLen = logR * 2.8;
+      ctx.save();
+      ctx.translate(o.x, o.y);
+      ctx.rotate(o.angle + Math.PI / 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(3, 5, logHalfLen + 2, logR + 1, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = '#6B3E1E';
-      ctx.fill();
-      // Inner dot
       ctx.beginPath();
-      ctx.arc(ex, 0, logR * 0.28, 0, Math.PI * 2);
-      ctx.fillStyle = '#3D1F08';
+      ctx.roundRect(-logHalfLen, -logR, logHalfLen * 2, logR * 2, logR);
       ctx.fill();
+      ctx.fillStyle = '#8B5A2B';
+      ctx.beginPath();
+      ctx.roundRect(-logHalfLen + 2, -logR + 2, logHalfLen * 2 - 4, logR * 2 - 4, logR - 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(40,18,5,0.30)';
+      ctx.lineWidth = 1;
+      for (let g = -logHalfLen + logR + 4; g < logHalfLen - logR - 2; g += 5) {
+        ctx.beginPath(); ctx.moveTo(g, -logR + 3); ctx.lineTo(g, logR - 3); ctx.stroke();
+      }
+      for (const ex of [-logHalfLen + logR, logHalfLen - logR]) {
+        ctx.beginPath(); ctx.arc(ex, 0, logR - 1, 0, Math.PI * 2);
+        ctx.fillStyle = '#3D1F08'; ctx.fill();
+        ctx.beginPath(); ctx.arc(ex, 0, logR * 0.65, 0, Math.PI * 2);
+        ctx.fillStyle = '#6B3E1E'; ctx.fill();
+        ctx.beginPath(); ctx.arc(ex, 0, logR * 0.28, 0, Math.PI * 2);
+        ctx.fillStyle = '#3D1F08'; ctx.fill();
+      }
+      ctx.restore();
     }
-
-    ctx.restore();
   }
 }
 
 function checkObstacleCollisions() {
   const carR = 8;
   for (const o of obstacles) {
-    const dx = car.x - o.x, dy = car.y - o.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const minDist = carR + o.r;
-    if (dist < minDist && dist > 0) {
-      // Push car out of overlap
-      const nx = dx / dist, ny = dy / dist;
-      const overlap = minDist - dist;
-      car.x += nx * overlap;
-      car.y += ny * overlap;
+    if (currentMapIndex === 2) {
+      // OBB collision: rectangle hitbox matching the drawn car model
+      const hw = o.r * 1.2;  // half car width  (cw/2 = o.r*2.4/2)
+      const hh = o.r * 2.1;  // half car length (ch/2 = o.r*4.2/2)
+      const angle = o.angle + Math.PI / 2;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
 
-      // Reflect velocity component along collision normal, dampen on impact
-      const dot = car.vx * nx + car.vy * ny;
-      if (dot < 0) {
-        car.vx -= dot * nx * 1.4;
-        car.vy -= dot * ny * 1.4;
-        car.vx *= 0.55;
-        car.vy *= 0.55;
+      const dx = car.x - o.x, dy = car.y - o.y;
+      // Rotate car position into obstacle's local space
+      const lx =  dx * cosA + dy * sinA;
+      const ly = -dx * sinA + dy * cosA;
+
+      // Closest point on rectangle to circle centre
+      const clampX = Math.max(-hw, Math.min(hw, lx));
+      const clampY = Math.max(-hh, Math.min(hh, ly));
+      const distX = lx - clampX, distY = ly - clampY;
+      const dist = Math.sqrt(distX * distX + distY * distY);
+
+      if (dist < carR) {
+        let pushX, pushY;
+        if (dist > 0.001) {
+          pushX = distX / dist;
+          pushY = distY / dist;
+        } else {
+          // Circle centre inside rect — push out along shortest-overlap axis
+          const ox = hw - Math.abs(lx), oy = hh - Math.abs(ly);
+          if (ox < oy) { pushX = lx > 0 ? 1 : -1; pushY = 0; }
+          else         { pushX = 0; pushY = ly > 0 ? 1 : -1; }
+        }
+        const overlap = carR - dist;
+        // Rotate push direction back to world space
+        const wpx = pushX * cosA - pushY * sinA;
+        const wpy = pushX * sinA + pushY * cosA;
+        car.x += wpx * overlap;
+        car.y += wpy * overlap;
+        const dot = car.vx * wpx + car.vy * wpy;
+        if (dot < 0) {
+          car.vx -= dot * wpx * 1.4;
+          car.vy -= dot * wpy * 1.4;
+          car.vx *= 0.55;
+          car.vy *= 0.55;
+        }
+      }
+    } else {
+      // Circle collision for logs
+      const dx = car.x - o.x, dy = car.y - o.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = carR + o.r;
+      if (dist < minDist && dist > 0) {
+        const nx = dx / dist, ny = dy / dist;
+        const overlap = minDist - dist;
+        car.x += nx * overlap;
+        car.y += ny * overlap;
+        const dot = car.vx * nx + car.vy * ny;
+        if (dot < 0) {
+          car.vx -= dot * nx * 1.4;
+          car.vy -= dot * ny * 1.4;
+          car.vx *= 0.55;
+          car.vy *= 0.55;
+        }
       }
     }
   }
@@ -692,23 +1072,31 @@ function updateHUD(dt) {
 }
 
 let last = 0;
+
 function loop(ts) {
   const dt = ts - last; last = ts;
   update();
+
+  const scrolling = !!MAPS[currentMapIndex].scrolling;
+  if (scrolling) { camX = car.x - W/2; camY = car.y - H/2; }
+
   ctx.clearRect(0, 0, W, H);
+
+  if (scrolling) { ctx.save(); ctx.translate(-Math.round(camX), -Math.round(camY)); }
   drawTrack();
   drawBushes();
   drawObstacles();
   updateAndDrawParticles();
   drawCar();
-  updateHUD(dt);
+  if (scrolling) ctx.restore();
 
-  // Off-track indicator
+  // Off-track indicator (screen space — after restore)
   if (!car.onTrack) {
     ctx.fillStyle = 'rgba(255,80,0,0.12)';
     ctx.fillRect(0, 0, W, H);
   }
 
+  updateHUD(dt);
   requestAnimationFrame(loop);
 }
 

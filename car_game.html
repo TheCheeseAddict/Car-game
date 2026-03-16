@@ -171,11 +171,7 @@ const MAPS = [
       {x:35,   y:278},  // 18
       {x:120,  y:218},  // 19
     ],
-    obstaclePlacements: [
-      [0.05,0.40],[0.15,-0.38],[0.26,0.42],
-      [0.45,-0.35],[0.55,0.38],[0.65,-0.40],
-      [0.76,0.35],[0.88,-0.38],
-    ],
+    obstaclePlacements: [],
   },
 ];
 
@@ -521,9 +517,14 @@ function update() {
   car.x += car.vx;
   car.y += car.vy;
 
-  // Boundary clamp
-  car.x = Math.max(5, Math.min(W-5, car.x));
-  car.y = Math.max(5, Math.min(H-5, car.y));
+  // Boundary clamp — use large world bounds for scrolling maps, canvas bounds otherwise
+  if (MAPS[currentMapIndex].scrolling) {
+    car.x = Math.max(-500, Math.min(3500, car.x));
+    car.y = Math.max(-300, Math.min(1000, car.y));
+  } else {
+    car.x = Math.max(5, Math.min(W-5, car.x));
+    car.y = Math.max(5, Math.min(H-5, car.y));
+  }
 
   checkLapCross();
   checkObstacleCollisions();

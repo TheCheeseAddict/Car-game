@@ -172,6 +172,15 @@ const MAPS = [
       {x:120,  y:218},  // 19
     ],
     obstaclePlacements: [],
+    carConfig: {
+      MAX_SPEED:    6.5,    // ~260 km/h — drag car top speed
+      SPEED_PHASE1: 4.5,    // phase-2 accel kicks in later
+      OFFTRACK_MAX: 1.5,
+      ACCEL:        0.14,   // very strong acceleration
+      BRAKE:        0.18,
+      FRICTION:     0.985,  // less friction (slippery at high speed)
+      STEER_SPEED:  0.022,  // low steer = large turn radius (hard to turn)
+    },
   },
 ];
 
@@ -267,6 +276,24 @@ let sfPt, sfDx, sfDy, sfLen, sfNx, sfNy;
 let finishA, finishB, checkpoints, obstacles, bushes;
 let camX = 0, camY = 0;
 
+// ── CAR PHYSICS DEFAULTS ───────────────────────────────────────────────────────
+const DEFAULT_CAR = {
+  MAX_SPEED:    3.25,
+  SPEED_PHASE1: 2.625,
+  OFFTRACK_MAX: 1.5,
+  ACCEL:        0.08,
+  BRAKE:        0.12,
+  FRICTION:     0.97,
+  STEER_SPEED:  0.055,
+};
+let MAX_SPEED    = DEFAULT_CAR.MAX_SPEED;
+let SPEED_PHASE1 = DEFAULT_CAR.SPEED_PHASE1;
+let OFFTRACK_MAX = DEFAULT_CAR.OFFTRACK_MAX;
+let ACCEL        = DEFAULT_CAR.ACCEL;
+let BRAKE        = DEFAULT_CAR.BRAKE;
+let FRICTION     = DEFAULT_CAR.FRICTION;
+let STEER_SPEED  = DEFAULT_CAR.STEER_SPEED;
+
 function loadMap(index) {
   currentMapIndex = index;
   const map = MAPS[index];
@@ -299,6 +326,16 @@ function loadMap(index) {
   obstacles = buildObstacles(obstaclePlacements, splinePts, NSPLINE);
   bushes    = buildBushes(splinePts, !!MAPS[index].scrolling);
   camX = 0; camY = 0;
+
+  // Apply per-map car physics (fall back to defaults)
+  const cfg = MAPS[index].carConfig || DEFAULT_CAR;
+  MAX_SPEED    = cfg.MAX_SPEED;
+  SPEED_PHASE1 = cfg.SPEED_PHASE1;
+  OFFTRACK_MAX = cfg.OFFTRACK_MAX;
+  ACCEL        = cfg.ACCEL;
+  BRAKE        = cfg.BRAKE;
+  FRICTION     = cfg.FRICTION;
+  STEER_SPEED  = cfg.STEER_SPEED;
 }
 
 loadMap(0);
@@ -436,14 +473,6 @@ function checkLapCross() {
     }
   }
 }
-
-const MAX_SPEED = 3.25;       // 130 km/h cap (display = internal * 40)
-const SPEED_PHASE1 = 2.625;  // 105 km/h — accel drops to 45% slower above this
-const OFFTRACK_MAX = 1.5;
-const ACCEL = 0.08;
-const BRAKE = 0.12;
-const FRICTION = 0.97;
-const STEER_SPEED = 0.055;
 
 function update() {
   if (car.finished || paused) return;
@@ -1029,34 +1058,79 @@ function drawCar() {
   ctx.translate(car.x, car.y);
   ctx.rotate(car.angle - Math.PI / 2);
 
-  const cw = 14, ch = 24;
+  if (currentMapIndex === 3) {
+    // Drag car: long, narrow, yellow-gold body
+    const cw = 10, ch = 34;
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath();
-  ctx.ellipse(3, 3, cw/2+2, ch/2+2, 0, 0, Math.PI*2);
-  ctx.fill();
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(3, 3, cw/2+2, ch/2+2, 0, 0, Math.PI*2);
+    ctx.fill();
 
-  // Car body
-  ctx.fillStyle = car.onTrack ? '#e63' : '#e33';
-  ctx.beginPath();
-  ctx.roundRect(-cw/2, -ch/2, cw, ch, 4);
-  ctx.fill();
+    // Body
+    ctx.fillStyle = car.onTrack ? '#f5c518' : '#c49000';
+    ctx.beginPath();
+    ctx.roundRect(-cw/2, -ch/2, cw, ch, 3);
+    ctx.fill();
 
-  // Windshield
-  ctx.fillStyle = 'rgba(150,220,255,0.7)';
-  ctx.fillRect(-cw/2+3, -ch/2+4, cw-6, ch/2.5);
+    // Nose cone (front tip)
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.moveTo(-cw/2+1, -ch/2);
+    ctx.lineTo(cw/2-1,  -ch/2);
+    ctx.lineTo(0, -ch/2-4);
+    ctx.closePath();
+    ctx.fill();
 
-  // Rear window
-  ctx.fillStyle = 'rgba(150,220,255,0.5)';
-  ctx.fillRect(-cw/2+3, ch/2-8, cw-6, 5);
+    // Cockpit/windshield — narrow slit
+    ctx.fillStyle = 'rgba(100,200,255,0.75)';
+    ctx.fillRect(-cw/2+2, -ch/2+6, cw-4, 7);
 
-  // Wheels
-  ctx.fillStyle = '#222';
-  ctx.fillRect(-cw/2-3, -ch/2+2, 4, 7);
-  ctx.fillRect(cw/2-1, -ch/2+2, 4, 7);
-  ctx.fillRect(-cw/2-3, ch/2-9, 4, 7);
-  ctx.fillRect(cw/2-1, ch/2-9, 4, 7);
+    // Rear spoiler (bar across the back)
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-cw/2-4, ch/2-5, cw+8, 3);  // horizontal blade
+    ctx.fillRect(-cw/2-3, ch/2-9, 2, 5);      // left strut
+    ctx.fillRect( cw/2+1, ch/2-9, 2, 5);      // right strut
+
+    // Rear wide tires (drag slicks)
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-cw/2-5, -ch/2+3, 5, 8);   // front-left
+    ctx.fillRect( cw/2,   -ch/2+3, 5, 8);   // front-right
+    ctx.fillRect(-cw/2-6, ch/2-11, 6, 10);  // rear-left (wider)
+    ctx.fillRect( cw/2,   ch/2-11, 6, 10);  // rear-right (wider)
+
+  } else {
+    // Standard car
+    const cw = 14, ch = 24;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(3, 3, cw/2+2, ch/2+2, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Car body
+    ctx.fillStyle = car.onTrack ? '#e63' : '#e33';
+    ctx.beginPath();
+    ctx.roundRect(-cw/2, -ch/2, cw, ch, 4);
+    ctx.fill();
+
+    // Windshield
+    ctx.fillStyle = 'rgba(150,220,255,0.7)';
+    ctx.fillRect(-cw/2+3, -ch/2+4, cw-6, ch/2.5);
+
+    // Rear window
+    ctx.fillStyle = 'rgba(150,220,255,0.5)';
+    ctx.fillRect(-cw/2+3, ch/2-8, cw-6, 5);
+
+    // Wheels
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-cw/2-3, -ch/2+2, 4, 7);
+    ctx.fillRect(cw/2-1, -ch/2+2, 4, 7);
+    ctx.fillRect(-cw/2-3, ch/2-9, 4, 7);
+    ctx.fillRect(cw/2-1, ch/2-9, 4, 7);
+  }
 
   ctx.restore();
 }

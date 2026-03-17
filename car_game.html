@@ -41,10 +41,51 @@
   .map-btn { padding: 5px 14px; font-family: monospace; font-size: 13px; font-weight: bold; background: rgba(0,0,0,0.6); border: 1px solid #555; border-radius: 6px; color: #ccc; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .map-btn:hover { background: rgba(80,80,80,0.8); color: #fff; }
   .map-btn.active { background: #e63; color: #fff; border-color: #e63; }
+  #lobbyScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
+  #lobbyScreen h1 { font-size:52px; font-weight:bold; color:#e63; letter-spacing:4px; text-shadow:0 0 30px #e63a; }
+  #lobbyScreen p { color:#555; font-size:13px; }
+  .lobby-row { display:flex; gap:10px; align-items:center; }
+  .lobby-btn { padding:11px 28px; font-family:monospace; font-size:15px; font-weight:bold; border:none; border-radius:8px; cursor:pointer; transition:opacity 0.15s; }
+  .lobby-btn:hover { opacity:0.82; }
+  #btnCreate { background:#e63; color:#fff; }
+  #btnJoin   { background:#444; color:#fff; }
+  #btnSolo   { background:#292929; color:#aaa; border:1px solid #444; }
+  #btnStartRace { background:#2a2; color:#fff; padding:13px 40px; font-family:monospace; font-size:17px; font-weight:bold; border:none; border-radius:8px; cursor:pointer; display:none; }
+  #btnStartRace:hover { opacity:0.85; }
+  #joinCode { padding:10px 14px; font-family:monospace; font-size:15px; background:#222; border:1px solid #555; border-radius:8px; color:#fff; width:120px; text-transform:uppercase; letter-spacing:2px; }
+  #lobbyStatus { font-size:14px; color:#aaa; min-height:20px; text-align:center; }
+  #lobbyDivider { width:300px; border:none; border-top:1px solid #333; margin:4px 0; }
+  .laps-row { display:flex; align-items:center; gap:10px; }
+  .laps-label { font-size:12px; color:#777; text-transform:uppercase; letter-spacing:1px; }
+  .laps-btn { width:30px; height:30px; background:#333; border:1px solid #555; border-radius:6px; color:#fff; font-size:18px; font-family:monospace; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .laps-btn:hover { background:#444; }
+  .laps-val { font-size:22px; font-weight:bold; color:#fc0; font-family:monospace; min-width:32px; text-align:center; }
 </style>
 </head>
 <body>
-<div id="gameWrapper">
+<div id="lobbyScreen">
+  <h1>CAR GAME</h1>
+  <div class="lobby-row">
+    <button class="lobby-btn" id="btnCreate">Create Room</button>
+  </div>
+  <div class="lobby-row">
+    <input id="joinCode" placeholder="ROOM CODE" maxlength="6" spellcheck="false" />
+    <button class="lobby-btn" id="btnJoin">Join Room</button>
+  </div>
+  <div class="laps-row">
+    <span class="laps-label">Laps</span>
+    <button class="laps-btn" id="lobbyLapsDec">−</button>
+    <span class="laps-val" id="lobbyLapsVal">5</span>
+    <button class="laps-btn" id="lobbyLapsInc">+</button>
+  </div>
+  <hr id="lobbyDivider">
+  <button class="lobby-btn" id="btnSolo">Play Solo</button>
+  <div id="lobbyStatus"></div>
+  <button id="btnStartRace">Start Race ▶</button>
+  <p>Share your room code with friends to race together</p>
+</div>
+
+<div id="gameWrapper" style="display:none">
   <canvas id="c"></canvas>
   <button id="menuBtn" title="Menu (Esc)"><span></span><span></span><span></span></button>
   <div id="mapbar">
@@ -62,6 +103,12 @@
       <h2>PAUSED</h2>
       <button class="menu-btn" id="mbResume">Resume</button>
       <button class="menu-btn" id="mbReset">Restart Race</button>
+      <div id="menuMapLabel" style="margin-top:4px">LAPS</div>
+      <div class="laps-row">
+        <button class="laps-btn" id="menuLapsDec">−</button>
+        <span class="laps-val" id="menuLapsVal">5</span>
+        <button class="laps-btn" id="menuLapsInc">+</button>
+      </div>
       <div id="menuMapLabel">SELECT MAP</div>
       <div id="menuMapBtns">
         <button class="menu-map-btn active" onclick="switchMap(0)">Classic</button>
@@ -73,7 +120,31 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, onDisconnect }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAOVIcGJ3_IlE7oW-u_YA58aS6oJDvy7pg",
+  authDomain: "car-game-mp-48d63.firebaseapp.com",
+  databaseURL: "https://car-game-mp-48d63-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "car-game-mp-48d63",
+  storageBucket: "car-game-mp-48d63.firebasestorage.app",
+  messagingSenderId: "947732271098",
+  appId: "1:947732271098:web:47189764f09cd140c75e43",
+};
+const fbApp = initializeApp(firebaseConfig);
+const db    = getDatabase(fbApp);
+
+// ── MULTIPLAYER STATE ──────────────────────────────────────────────────────────
+let myPlayerId  = null;
+let roomCode    = null;
+let isHost      = false;
+let gameStarted = false;
+let remotePlayers = {};
+let lastSync    = 0;
+
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
@@ -425,6 +496,18 @@ function resetGame() {
   if (MAPS[currentMapIndex].scrolling) { camX = car.x - W/2; camY = car.y - H/2; }
 }
 
+// ── LAP SETTINGS ──────────────────────────────────────────────────────────────
+function setLaps(n) {
+  n = Math.max(1, Math.min(20, n));
+  car.totalLaps = n;
+  document.getElementById('lobbyLapsVal').textContent = n;
+  document.getElementById('menuLapsVal').textContent  = n;
+}
+document.getElementById('lobbyLapsDec').onclick = () => setLaps(car.totalLaps - 1);
+document.getElementById('lobbyLapsInc').onclick = () => setLaps(car.totalLaps + 1);
+document.getElementById('menuLapsDec').onclick  = () => setLaps(car.totalLaps - 1);
+document.getElementById('menuLapsInc').onclick  = () => setLaps(car.totalLaps + 1);
+
 function switchMap(index) {
   loadMap(index);
   resetGame();
@@ -433,6 +516,7 @@ function switchMap(index) {
     btn.classList.toggle('active', i === index));
   document.querySelectorAll('.menu-map-btn').forEach((btn, i) =>
     btn.classList.toggle('active', i === index));
+  if (isHost && roomCode) set(ref(db, `rooms/${roomCode}/mapIndex`), index);
 }
 
 function checkLapCross() {
@@ -1146,11 +1230,109 @@ function updateHUD(dt) {
   }
 }
 
+// ── MULTIPLAYER FUNCTIONS ──────────────────────────────────────────────────────
+
+function startGame() {
+  if (gameStarted) return;
+  gameStarted = true;
+  document.getElementById('lobbyScreen').style.display = 'none';
+  document.getElementById('gameWrapper').style.display = 'inline-block';
+  showStartPrompt();
+  requestAnimationFrame(loop);
+}
+
+async function joinRoom() {
+  const playerRef = ref(db, `rooms/${roomCode}/players/${myPlayerId}`);
+  await set(playerRef, { x:0, y:0, angle:0, laps:0, onTrack:true });
+  onDisconnect(playerRef).remove();
+  listenToRoom();
+}
+
+function listenToRoom() {
+  onValue(ref(db, `rooms/${roomCode}`), snap => {
+    const data = snap.val();
+    if (!data) return;
+    if (!isHost && data.mapIndex !== undefined && data.mapIndex !== currentMapIndex)
+      switchMap(data.mapIndex);
+    if (data.started && !gameStarted) startGame();
+    remotePlayers = {};
+    for (const [id, p] of Object.entries(data.players || {})) {
+      if (id !== myPlayerId) remotePlayers[id] = p;
+    }
+  });
+}
+
+document.getElementById('btnCreate').onclick = async () => {
+  myPlayerId = Math.random().toString(36).slice(2,10);
+  roomCode   = Math.random().toString(36).slice(2,8).toUpperCase();
+  isHost     = true;
+  await set(ref(db, `rooms/${roomCode}`), { mapIndex: currentMapIndex, started: false, players: {} });
+  await joinRoom();
+  document.getElementById('lobbyStatus').textContent = `Room code: ${roomCode}  —  share this with friends!`;
+  document.getElementById('btnStartRace').style.display = 'block';
+};
+
+document.getElementById('btnJoin').onclick = async () => {
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  if (!code) { document.getElementById('lobbyStatus').textContent = 'Enter a room code first.'; return; }
+  myPlayerId = Math.random().toString(36).slice(2,10);
+  roomCode   = code;
+  isHost     = false;
+  document.getElementById('lobbyStatus').textContent = `Joining ${roomCode}...`;
+  await joinRoom();
+  document.getElementById('lobbyStatus').textContent = `Joined ${roomCode} — waiting for host to start...`;
+};
+
+document.getElementById('btnStartRace').onclick = () => {
+  set(ref(db, `rooms/${roomCode}/started`), true);
+};
+
+document.getElementById('btnSolo').onclick = () => startGame();
+
+function drawRemotePlayers() {
+  for (const [id, p] of Object.entries(remotePlayers)) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle - Math.PI / 2);
+    const cw = 14, ch = 24;
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(3,3,cw/2+2,ch/2+2,0,0,Math.PI*2); ctx.fill();
+    // Body — blue
+    ctx.fillStyle = p.onTrack ? '#36f' : '#226';
+    ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,4); ctx.fill();
+    // Windshield
+    ctx.fillStyle = 'rgba(150,220,255,0.7)';
+    ctx.fillRect(-cw/2+3,-ch/2+4,cw-6,ch/2.5);
+    // Wheels
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-cw/2-3,-ch/2+2,4,7); ctx.fillRect(cw/2-1,-ch/2+2,4,7);
+    ctx.fillRect(-cw/2-3,ch/2-9,4,7);  ctx.fillRect(cw/2-1,ch/2-9,4,7);
+    // Name tag — un-rotate so text stays upright
+    ctx.rotate(-(p.angle - Math.PI/2));
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(id.slice(0,4), 0, -20);
+    ctx.restore();
+  }
+}
+
 let last = 0;
 
 function loop(ts) {
   const dt = ts - last; last = ts;
   update();
+
+  // Sync local car to Firebase at 20Hz
+  if (roomCode && ts - lastSync > 50) {
+    lastSync = ts;
+    set(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), {
+      x: Math.round(car.x), y: Math.round(car.y),
+      angle: +car.angle.toFixed(3),
+      laps: car.laps, onTrack: car.onTrack,
+    });
+  }
 
   const scrolling = !!MAPS[currentMapIndex].scrolling;
   if (scrolling) { camX = car.x - W/2; camY = car.y - H/2; }
@@ -1162,6 +1344,7 @@ function loop(ts) {
   drawBushes();
   drawObstacles();
   updateAndDrawParticles();
+  drawRemotePlayers();
   drawCar();
   if (scrolling) ctx.restore();
 
@@ -1175,13 +1358,16 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-// Start prompt
-const msg = document.getElementById('msg');
-msg.innerHTML = 'Press Arrow Keys / WASD<br><span style="font-size:18px">Drive through Start/Finish to begin!</span>';
-msg.style.display = 'block';
-setTimeout(() => { msg.style.display = 'none'; }, 3000);
+// Start prompt (shown once game starts)
+function showStartPrompt() {
+  const msg = document.getElementById('msg');
+  msg.innerHTML = 'Press Arrow Keys / WASD<br><span style="font-size:18px">Drive through Start/Finish to begin!</span>';
+  msg.style.display = 'block';
+  setTimeout(() => { msg.style.display = 'none'; }, 3000);
+}
 
-requestAnimationFrame(loop);
+// Expose to global scope for inline HTML onclick attributes (required for type="module")
+window.switchMap = switchMap;
 </script>
 </body>
 </html>

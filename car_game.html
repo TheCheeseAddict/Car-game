@@ -658,7 +658,7 @@ function update() {
 
   // Overall friction — dragster sheds extra speed while turning
   let friction = car.onTrack ? FRICTION : 0.94;
-  if (currentMapIndex === 3) friction *= (1 - car.steerAmount * 0.18);
+  if (currentMapIndex === 3) friction *= (1 - car.steerAmount * 0.06);
   car.vx *= friction;
   car.vy *= friction;
 
@@ -666,18 +666,20 @@ function update() {
   if (Math.abs(longSpd) > 0.05) {
     let steerAmt;
     if (currentMapIndex === 3) {
-      // Dragster: same turn rate as regular car up to 110 km/h (2.75),
-      // then linearly tighten to dragster max (0.022) at full speed.
+      // Dragster: full regular-car turning below 80 km/h (2.0),
+      // then turn radius grows rapidly — at max speed steering is very sluggish.
       const spd = Math.abs(longSpd);
-      const SPD_LOW = 2.75;                            // 110 km/h internal
-      const STEER_LOW  = 0.055 * (SPD_LOW / 3.25);    // regular car rate at 110 km/h ≈ 0.0465
-      const STEER_HIGH = 0.022;                        // dragster rate at max speed
+      const SPD_LOW  = 2.0;                            // 80 km/h — full turning below this
+      const SPD_HIGH = MAX_SPEED;                      // 260 km/h
+      const STEER_LOW  = 0.055 * (SPD_LOW / 3.25);    // regular car rate at 80 km/h ≈ 0.034
+      const STEER_HIGH = 0.010;                        // very wide radius at max speed
       let rate;
       if (spd <= SPD_LOW) {
-        rate = 0.055 * (spd / 3.25);                  // identical to regular car below 110
+        rate = 0.055 * (spd / 3.25);                  // identical to regular car below 80
       } else {
-        const t = Math.min(1, (spd - SPD_LOW) / (MAX_SPEED - SPD_LOW));
-        rate = STEER_LOW + (STEER_HIGH - STEER_LOW) * t;
+        // Quadratic curve so radius grows faster as speed climbs
+        const t = Math.min(1, (spd - SPD_LOW) / (SPD_HIGH - SPD_LOW));
+        rate = STEER_LOW + (STEER_HIGH - STEER_LOW) * (t * t);
       }
       steerAmt = Math.sign(longSpd) * rate;
     } else {

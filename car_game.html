@@ -22,6 +22,13 @@
   #lapTimeSep { font-size: 25px; font-weight: bold; color: #555; font-family: monospace; }
   #lapTimeVal { font-size: 25px; font-weight: bold; color: #f80; font-family: monospace; }
   #msg { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 32px; font-weight: bold; color: #fff; text-shadow: 0 0 20px #f0a; display: none; text-align: center; line-height: 1.6; }
+  #winnerBanner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; text-align: center; pointer-events: none; background: rgba(0,0,0,0.82); border: 1px solid #444; border-radius: 14px; padding: 28px 48px 32px; min-width: 280px; }
+  #winnerBanner .win-title { font-size: 64px; font-weight: bold; font-family: monospace; letter-spacing: 4px; animation: winPulse 0.7s infinite alternate; line-height: 1.1; }
+  #winnerBanner .win-stats { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+  #winnerBanner .win-stat-row { display: flex; justify-content: space-between; align-items: center; gap: 40px; font-family: monospace; font-size: 16px; line-height: 1; }
+  #winnerBanner .win-stat-label { color: #777; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+  #winnerBanner .win-stat-val { color: #fff; font-weight: bold; white-space: nowrap; }
+  @keyframes winPulse { from { text-shadow: 0 0 8px currentColor; } to { text-shadow: 0 0 28px currentColor, 0 0 55px currentColor; } }
   #menuBtn { position: absolute; top: 14px; left: 14px; width: 36px; height: 36px; background: rgba(0,0,0,0.6); border: 1px solid #555; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; z-index: 10; }
   #menuBtn span { display: block; width: 18px; height: 2px; background: #ccc; border-radius: 2px; }
   #menuOverlay { position: absolute; inset: 0; background: rgba(0,0,0,0.72); display: none; align-items: center; justify-content: center; z-index: 20; }
@@ -37,10 +44,10 @@
   .menu-map-btn { flex: 1; padding: 8px 0; font-family: monospace; font-size: 13px; font-weight: bold; background: #333; border: 1px solid #555; border-radius: 7px; color: #ccc; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .menu-map-btn:hover { background: #444; color: #fff; }
   .menu-map-btn.active { background: #e63; color: #fff; border-color: #e63; }
-  #mapbar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 5; }
-  .map-btn { padding: 5px 14px; font-family: monospace; font-size: 13px; font-weight: bold; background: rgba(0,0,0,0.6); border: 1px solid #555; border-radius: 6px; color: #ccc; cursor: pointer; transition: background 0.15s, color 0.15s; }
-  .map-btn:hover { background: rgba(80,80,80,0.8); color: #fff; }
-  .map-btn.active { background: #e63; color: #fff; border-color: #e63; }
+  #usernameInput { padding:10px 14px; font-family:monospace; font-size:15px; background:#222; border:1px solid #555; border-radius:8px; color:#fff; width:200px; }
+  #usernameInput::placeholder { color:#555; }
+  #menuUsernameInput { padding:7px 12px; font-family:monospace; font-size:14px; background:#222; border:1px solid #555; border-radius:7px; color:#fff; width:100%; box-sizing:border-box; }
+  #menuUsernameInput::placeholder { color:#555; }
   #lobbyScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
   #lobbyScreen h1 { font-size:52px; font-weight:bold; color:#e63; letter-spacing:4px; text-shadow:0 0 30px #e63a; }
   #lobbyScreen p { color:#555; font-size:13px; }
@@ -65,6 +72,7 @@
 <body>
 <div id="lobbyScreen">
   <h1>CAR GAME</h1>
+  <input id="usernameInput" placeholder="Enter your name" maxlength="16" spellcheck="false" />
   <div class="lobby-row">
     <button class="lobby-btn" id="btnCreate">Create Room</button>
   </div>
@@ -88,21 +96,25 @@
 <div id="gameWrapper" style="display:none">
   <canvas id="c"></canvas>
   <button id="menuBtn" title="Menu (Esc)"><span></span><span></span><span></span></button>
-  <div id="mapbar">
-    <button class="map-btn active" onclick="switchMap(0)">Classic</button>
-    <button class="map-btn" onclick="switchMap(1)">Oval Sprint</button>
-    <button class="map-btn" onclick="switchMap(2)">City Block</button>
-    <button class="map-btn" onclick="switchMap(3)">Desert Oval</button>
-  </div>
   <div id="speedDisplay"><span id="speedVal">0</span><span id="speedUnit">km/h</span></div>
   <div id="lapDisplay"><span id="lapDisplayVal">0/5</span><span id="lapDisplayUnit">LAP</span><span id="lapTimeSep">|</span><span id="lapTimeVal">0.0s</span></div>
   <div id="msg"></div>
+  <div id="winnerBanner">
+    <div class="win-title" id="winnerTitle"></div>
+    <div class="win-stats">
+      <div class="win-stat-row"><span class="win-stat-label">Best Lap</span><span class="win-stat-val" id="wsBest">—</span></div>
+      <div class="win-stat-row"><span class="win-stat-label">Worst Lap</span><span class="win-stat-val" id="wsWorst">—</span></div>
+      <div class="win-stat-row"><span class="win-stat-label">Avg Lap</span><span class="win-stat-val" id="wsAvg">—</span></div>
+    </div>
+  </div>
   <div id="controls">Arrow Keys / WASD to drive &nbsp;|&nbsp; R to reset &nbsp;|&nbsp; Esc to pause</div>
   <div id="menuOverlay">
     <div id="menuBox">
       <h2>PAUSED</h2>
       <button class="menu-btn" id="mbResume">Resume</button>
       <button class="menu-btn" id="mbReset">Restart Race</button>
+      <div id="menuMapLabel" style="margin-top:4px">USERNAME</div>
+      <input id="menuUsernameInput" placeholder="Enter your name" maxlength="16" spellcheck="false" />
       <div id="menuMapLabel" style="margin-top:4px">LAPS</div>
       <div class="laps-row">
         <button class="laps-btn" id="menuLapsDec">−</button>
@@ -139,7 +151,26 @@ const db    = getDatabase(fbApp);
 
 // ── MULTIPLAYER STATE ──────────────────────────────────────────────────────────
 let myPlayerId  = null;
+let playerName  = 'Player';
 let roomCode    = null;
+
+function randomColor() {
+  const h = Math.floor(Math.random() * 360);
+  const s = 0.85, l = 0.55;
+  const c = (1 - Math.abs(2*l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r=0, g=0, b=0;
+  if      (h < 60)  { r=c; g=x; b=0; }
+  else if (h < 120) { r=x; g=c; b=0; }
+  else if (h < 180) { r=0; g=c; b=x; }
+  else if (h < 240) { r=0; g=x; b=c; }
+  else if (h < 300) { r=x; g=0; b=c; }
+  else              { r=c; g=0; b=x; }
+  const hex = n => Math.round((n + m) * 255).toString(16).padStart(2, '0');
+  return '#' + hex(r) + hex(g) + hex(b);
+}
+let myColor = randomColor();
 let isHost      = false;
 let gameStarted = false;
 let remotePlayers = {};
@@ -249,7 +280,7 @@ const MAPS = [
       OFFTRACK_MAX: 1.5,
       ACCEL:        0.14,   // very strong acceleration
       BRAKE:        0.18,
-      FRICTION:     0.985,  // less friction (slippery at high speed)
+      FRICTION:     0.9805, // 30% more speed-loss per frame than original dragster (0.985)
       STEER_SPEED:  0.022,  // low steer = large turn radius (hard to turn)
     },
   },
@@ -454,6 +485,7 @@ const car = {
   lapStartTime: null,
   laps: 0,
   bestLap: null,
+  worstLap: null,
   raceStartTime: null,
   raceStarted: false,
   finished: false,
@@ -473,10 +505,18 @@ document.getElementById('mbReset').addEventListener('click', () => { closeMenu()
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { paused ? closeMenu() : openMenu(); return; }
+  if (e.target.tagName === 'INPUT') return;
   keys[e.key] = true;
   if (e.key === 'r' || e.key === 'R') resetGame();
 });
-document.addEventListener('keyup', e => { keys[e.key] = false; });
+document.addEventListener('keyup', e => {
+  if (e.target.tagName === 'INPUT') return;
+  keys[e.key] = false;
+});
+// Clear all keys when an input gains focus (unstick any already-held keys)
+document.addEventListener('focusin', e => {
+  if (e.target.tagName === 'INPUT') Object.keys(keys).forEach(k => keys[k] = false);
+});
 
 function resetGame() {
   car.x = sfPt.x + sfNx*5;
@@ -486,6 +526,7 @@ function resetGame() {
   car.vx = 0; car.vy = 0;
   car.laps = 0;
   car.bestLap = null;
+  car.worstLap = null;
   car.lapStartTime = null;
   car.raceStartTime = null;
   car.raceStarted = false;
@@ -493,6 +534,8 @@ function resetGame() {
   checkpoints.forEach(c => c.hit = false);
   car.steerAmount = 0;
   document.getElementById('msg').style.display = 'none';
+  document.getElementById('winnerBanner').style.display = 'none';
+  if (roomCode && isHost) set(ref(db, `rooms/${roomCode}/winner`), null);
   if (MAPS[currentMapIndex].scrolling) { camX = car.x - W/2; camY = car.y - H/2; }
 }
 
@@ -502,6 +545,7 @@ function setLaps(n) {
   car.totalLaps = n;
   document.getElementById('lobbyLapsVal').textContent = n;
   document.getElementById('menuLapsVal').textContent  = n;
+  if (isHost && roomCode) set(ref(db, `rooms/${roomCode}/laps`), n);
 }
 document.getElementById('lobbyLapsDec').onclick = () => setLaps(car.totalLaps - 1);
 document.getElementById('lobbyLapsInc').onclick = () => setLaps(car.totalLaps + 1);
@@ -541,16 +585,15 @@ function checkLapCross() {
       if (allHit) {
         const now = performance.now();
         const lapTime = (now - car.lapStartTime) / 1000;
-        if (!car.bestLap || lapTime < car.bestLap) car.bestLap = lapTime;
+        if (!car.bestLap  || lapTime < car.bestLap)  car.bestLap  = lapTime;
+        if (!car.worstLap || lapTime > car.worstLap) car.worstLap = lapTime;
         car.laps++;
         car.lapStartTime = now;
         if (car.laps >= car.totalLaps) {
-          car.finished = true;
           const totalTime = (now - car.raceStartTime) / 1000;
-          const avgLap = (totalTime / car.totalLaps).toFixed(2);
-          const msg = document.getElementById('msg');
-          msg.innerHTML = `Finished!<br><span style="font-size:20px">Best Lap: ${car.bestLap.toFixed(2)}s &nbsp;|&nbsp; Avg Lap: ${avgLap}s</span>`;
-          msg.style.display = 'block';
+          const avg = totalTime / car.totalLaps;
+          showWinner('WINNER!!', true, { best: car.bestLap, worst: car.worstLap, avg });
+          if (roomCode) set(ref(db, `rooms/${roomCode}/winner`), myPlayerId);
         }
       }
       checkpoints.forEach(c => c.hit = false);
@@ -606,21 +649,40 @@ function update() {
   // Lateral grip: fraction of lateral velocity removed per frame
   // High = snappy/grippy, low = drifty (lateral velocity persists)
   // Dirt road has less base grip; hard cornering drops it much further
-  const baseGrip = car.onTrack ? 0.58 : 0.42;
+  const baseGrip = car.onTrack ? (currentMapIndex === 3 ? 0.38 : 0.58) : 0.42;
   const grip = Math.max(0.07, baseGrip - car.steerAmount * 0.85);
   const latVx = car.vx - longSpd * hx;
   const latVy = car.vy - longSpd * hy;
   car.vx -= latVx * grip;
   car.vy -= latVy * grip;
 
-  // Overall friction
-  const friction = car.onTrack ? FRICTION : 0.94;
+  // Overall friction — dragster sheds extra speed while turning
+  let friction = car.onTrack ? FRICTION : 0.94;
+  if (currentMapIndex === 3) friction *= (1 - car.steerAmount * 0.18);
   car.vx *= friction;
   car.vy *= friction;
 
   // Steering (based on longitudinal speed so reversing steers correctly)
   if (Math.abs(longSpd) > 0.05) {
-    const steerAmt = STEER_SPEED * (longSpd / MAX_SPEED);
+    let steerAmt;
+    if (currentMapIndex === 3) {
+      // Dragster: same turn rate as regular car up to 110 km/h (2.75),
+      // then linearly tighten to dragster max (0.022) at full speed.
+      const spd = Math.abs(longSpd);
+      const SPD_LOW = 2.75;                            // 110 km/h internal
+      const STEER_LOW  = 0.055 * (SPD_LOW / 3.25);    // regular car rate at 110 km/h ≈ 0.0465
+      const STEER_HIGH = 0.022;                        // dragster rate at max speed
+      let rate;
+      if (spd <= SPD_LOW) {
+        rate = 0.055 * (spd / 3.25);                  // identical to regular car below 110
+      } else {
+        const t = Math.min(1, (spd - SPD_LOW) / (MAX_SPEED - SPD_LOW));
+        rate = STEER_LOW + (STEER_HIGH - STEER_LOW) * t;
+      }
+      steerAmt = Math.sign(longSpd) * rate;
+    } else {
+      steerAmt = STEER_SPEED * (longSpd / MAX_SPEED);
+    }
     if (left)  car.angle -= steerAmt;
     if (right) car.angle += steerAmt;
   }
@@ -1143,78 +1205,43 @@ function drawCar() {
   ctx.rotate(car.angle - Math.PI / 2);
 
   if (currentMapIndex === 3) {
-    // Drag car: long, narrow, yellow-gold body
+    // Drag car: long, narrow
     const cw = 10, ch = 34;
-
-    // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.ellipse(3, 3, cw/2+2, ch/2+2, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    // Body
-    ctx.fillStyle = car.onTrack ? '#f5c518' : '#c49000';
-    ctx.beginPath();
-    ctx.roundRect(-cw/2, -ch/2, cw, ch, 3);
-    ctx.fill();
-
-    // Nose cone (front tip)
+    ctx.beginPath(); ctx.ellipse(3,3,cw/2+2,ch/2+2,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = myColor;
+    ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,3); ctx.fill();
     ctx.fillStyle = '#222';
-    ctx.beginPath();
-    ctx.moveTo(-cw/2+1, -ch/2);
-    ctx.lineTo(cw/2-1,  -ch/2);
-    ctx.lineTo(0, -ch/2-4);
-    ctx.closePath();
-    ctx.fill();
-
-    // Cockpit/windshield — narrow slit
+    ctx.beginPath(); ctx.moveTo(-cw/2+1,-ch/2); ctx.lineTo(cw/2-1,-ch/2); ctx.lineTo(0,-ch/2-4); ctx.closePath(); ctx.fill();
     ctx.fillStyle = 'rgba(100,200,255,0.75)';
-    ctx.fillRect(-cw/2+2, -ch/2+6, cw-4, 7);
-
-    // Rear spoiler (bar across the back)
+    ctx.fillRect(-cw/2+2,-ch/2+6,cw-4,7);
     ctx.fillStyle = '#111';
-    ctx.fillRect(-cw/2-4, ch/2-5, cw+8, 3);  // horizontal blade
-    ctx.fillRect(-cw/2-3, ch/2-9, 2, 5);      // left strut
-    ctx.fillRect( cw/2+1, ch/2-9, 2, 5);      // right strut
-
-    // Rear wide tires (drag slicks)
+    ctx.fillRect(-cw/2-4,ch/2-5,cw+8,3); ctx.fillRect(-cw/2-3,ch/2-9,2,5); ctx.fillRect(cw/2+1,ch/2-9,2,5);
     ctx.fillStyle = '#222';
-    ctx.fillRect(-cw/2-5, -ch/2+3, 5, 8);   // front-left
-    ctx.fillRect( cw/2,   -ch/2+3, 5, 8);   // front-right
-    ctx.fillRect(-cw/2-6, ch/2-11, 6, 10);  // rear-left (wider)
-    ctx.fillRect( cw/2,   ch/2-11, 6, 10);  // rear-right (wider)
-
+    ctx.fillRect(-cw/2-5,-ch/2+3,5,8); ctx.fillRect(cw/2,-ch/2+3,5,8);
+    ctx.fillRect(-cw/2-6,ch/2-11,6,10); ctx.fillRect(cw/2,ch/2-11,6,10);
   } else {
     // Standard car
     const cw = 14, ch = 24;
-
-    // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(3, 3, cw/2+2, ch/2+2, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    // Car body
-    ctx.fillStyle = car.onTrack ? '#e63' : '#e33';
-    ctx.beginPath();
-    ctx.roundRect(-cw/2, -ch/2, cw, ch, 4);
-    ctx.fill();
-
-    // Windshield
+    ctx.beginPath(); ctx.ellipse(3,3,cw/2+2,ch/2+2,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = myColor;
+    ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,4); ctx.fill();
     ctx.fillStyle = 'rgba(150,220,255,0.7)';
-    ctx.fillRect(-cw/2+3, -ch/2+4, cw-6, ch/2.5);
-
-    // Rear window
+    ctx.fillRect(-cw/2+3,-ch/2+4,cw-6,ch/2.5);
     ctx.fillStyle = 'rgba(150,220,255,0.5)';
-    ctx.fillRect(-cw/2+3, ch/2-8, cw-6, 5);
-
-    // Wheels
+    ctx.fillRect(-cw/2+3,ch/2-8,cw-6,5);
     ctx.fillStyle = '#222';
-    ctx.fillRect(-cw/2-3, -ch/2+2, 4, 7);
-    ctx.fillRect(cw/2-1, -ch/2+2, 4, 7);
-    ctx.fillRect(-cw/2-3, ch/2-9, 4, 7);
-    ctx.fillRect(cw/2-1, ch/2-9, 4, 7);
+    ctx.fillRect(-cw/2-3,-ch/2+2,4,7); ctx.fillRect(cw/2-1,-ch/2+2,4,7);
+    ctx.fillRect(-cw/2-3,ch/2-9,4,7);  ctx.fillRect(cw/2-1,ch/2-9,4,7);
   }
+
+  // Own name tag — un-rotate so text stays upright
+  ctx.rotate(-(car.angle - Math.PI/2));
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(playerName, 0, -20);
 
   ctx.restore();
 }
@@ -1231,6 +1258,16 @@ function updateHUD(dt) {
 }
 
 // ── MULTIPLAYER FUNCTIONS ──────────────────────────────────────────────────────
+
+function showWinner(title, isYou, stats) {
+  document.getElementById('winnerTitle').textContent = title;
+  document.getElementById('winnerTitle').style.color = isYou ? '#fc0' : '#f55';
+  document.getElementById('wsBest').textContent  = stats && stats.best  != null ? stats.best.toFixed(2)  + 's' : '—';
+  document.getElementById('wsWorst').textContent = stats && stats.worst != null ? stats.worst.toFixed(2) + 's' : '—';
+  document.getElementById('wsAvg').textContent   = stats && stats.avg   != null ? stats.avg.toFixed(2)  + 's' : '—';
+  document.getElementById('winnerBanner').style.display = 'block';
+  car.finished = true;
+}
 
 function startGame() {
   if (gameStarted) return;
@@ -1254,7 +1291,19 @@ function listenToRoom() {
     if (!data) return;
     if (!isHost && data.mapIndex !== undefined && data.mapIndex !== currentMapIndex)
       switchMap(data.mapIndex);
+    if (!isHost && data.laps !== undefined && data.laps !== car.totalLaps)
+      setLaps(data.laps);
     if (data.started && !gameStarted) startGame();
+    if (data.winner && !car.finished) {
+      const stats = { best: car.bestLap, worst: car.worstLap,
+                      avg: car.raceStarted ? (performance.now() - car.raceStartTime) / 1000 / Math.max(car.laps, 1) : null };
+      if (data.winner === myPlayerId) {
+        showWinner('WINNER!!', true, stats);
+      } else {
+        const winnerName = (data.players && data.players[data.winner] && data.players[data.winner].name) || data.winner.slice(0,4);
+        showWinner(`${winnerName} WINS!`, false, stats);
+      }
+    }
     remotePlayers = {};
     for (const [id, p] of Object.entries(data.players || {})) {
       if (id !== myPlayerId) remotePlayers[id] = p;
@@ -1266,7 +1315,7 @@ document.getElementById('btnCreate').onclick = async () => {
   myPlayerId = Math.random().toString(36).slice(2,10);
   roomCode   = Math.random().toString(36).slice(2,8).toUpperCase();
   isHost     = true;
-  await set(ref(db, `rooms/${roomCode}`), { mapIndex: currentMapIndex, started: false, players: {} });
+  await set(ref(db, `rooms/${roomCode}`), { mapIndex: currentMapIndex, laps: car.totalLaps, started: false, players: {} });
   await joinRoom();
   document.getElementById('lobbyStatus').textContent = `Room code: ${roomCode}  —  share this with friends!`;
   document.getElementById('btnStartRace').style.display = 'block';
@@ -1289,31 +1338,59 @@ document.getElementById('btnStartRace').onclick = () => {
 
 document.getElementById('btnSolo').onclick = () => startGame();
 
+function syncUsername(val) {
+  playerName = val.trim() || 'Player';
+  document.getElementById('usernameInput').value = val;
+  document.getElementById('menuUsernameInput').value = val;
+}
+document.getElementById('usernameInput').addEventListener('input', e => syncUsername(e.target.value));
+document.getElementById('menuUsernameInput').addEventListener('input', e => syncUsername(e.target.value));
+
 function drawRemotePlayers() {
   for (const [id, p] of Object.entries(remotePlayers)) {
+    const col = p.color || '#36f';
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle - Math.PI / 2);
-    const cw = 14, ch = 24;
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.ellipse(3,3,cw/2+2,ch/2+2,0,0,Math.PI*2); ctx.fill();
-    // Body — blue
-    ctx.fillStyle = p.onTrack ? '#36f' : '#226';
-    ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,4); ctx.fill();
-    // Windshield
-    ctx.fillStyle = 'rgba(150,220,255,0.7)';
-    ctx.fillRect(-cw/2+3,-ch/2+4,cw-6,ch/2.5);
-    // Wheels
-    ctx.fillStyle = '#222';
-    ctx.fillRect(-cw/2-3,-ch/2+2,4,7); ctx.fillRect(cw/2-1,-ch/2+2,4,7);
-    ctx.fillRect(-cw/2-3,ch/2-9,4,7);  ctx.fillRect(cw/2-1,ch/2-9,4,7);
+
+    if (currentMapIndex === 3) {
+      // Drag car design for Desert Oval
+      const cw = 10, ch = 34;
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.ellipse(3,3,cw/2+2,ch/2+2,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,3); ctx.fill();
+      ctx.fillStyle = '#222';
+      ctx.beginPath(); ctx.moveTo(-cw/2+1,-ch/2); ctx.lineTo(cw/2-1,-ch/2); ctx.lineTo(0,-ch/2-4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(100,200,255,0.75)';
+      ctx.fillRect(-cw/2+2,-ch/2+6,cw-4,7);
+      ctx.fillStyle = '#111';
+      ctx.fillRect(-cw/2-4,ch/2-5,cw+8,3); ctx.fillRect(-cw/2-3,ch/2-9,2,5); ctx.fillRect(cw/2+1,ch/2-9,2,5);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-cw/2-5,-ch/2+3,5,8); ctx.fillRect(cw/2,-ch/2+3,5,8);
+      ctx.fillRect(-cw/2-6,ch/2-11,6,10); ctx.fillRect(cw/2,ch/2-11,6,10);
+    } else {
+      // Standard car
+      const cw = 14, ch = 24;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(3,3,cw/2+2,ch/2+2,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,4); ctx.fill();
+      ctx.fillStyle = 'rgba(150,220,255,0.7)';
+      ctx.fillRect(-cw/2+3,-ch/2+4,cw-6,ch/2.5);
+      ctx.fillStyle = 'rgba(150,220,255,0.5)';
+      ctx.fillRect(-cw/2+3,ch/2-8,cw-6,5);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-cw/2-3,-ch/2+2,4,7); ctx.fillRect(cw/2-1,-ch/2+2,4,7);
+      ctx.fillRect(-cw/2-3,ch/2-9,4,7);  ctx.fillRect(cw/2-1,ch/2-9,4,7);
+    }
+
     // Name tag — un-rotate so text stays upright
     ctx.rotate(-(p.angle - Math.PI/2));
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 9px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(id.slice(0,4), 0, -20);
+    ctx.fillText(p.name || id.slice(0,4), 0, -20);
     ctx.restore();
   }
 }
@@ -1330,7 +1407,7 @@ function loop(ts) {
     set(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), {
       x: Math.round(car.x), y: Math.round(car.y),
       angle: +car.angle.toFixed(3),
-      laps: car.laps, onTrack: car.onTrack,
+      laps: car.laps, onTrack: car.onTrack, name: playerName, color: myColor,
     });
   }
 

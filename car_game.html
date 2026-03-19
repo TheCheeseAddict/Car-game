@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,6 +22,8 @@
   #lapDisplayUnit { font-size: 25px; font-weight: bold; color: #fc0; font-family: monospace; }
   #lapTimeSep { font-size: 25px; font-weight: bold; color: #555; font-family: monospace; }
   #lapTimeVal { font-size: 25px; font-weight: bold; color: #f80; font-family: monospace; }
+  #raceTimer    { position: absolute; top: 20px; right: 28px; font-size: 22px; font-weight: bold; font-family: monospace; color: #f80; pointer-events: none; background: rgba(0,0,0,0.6); border: 1px solid #555; padding: 8px 14px; border-radius: 6px; display: none; }
+  #splitDisplay { position: absolute; top: 72px; right: 28px; font-size: 26px; font-weight: bold; font-family: monospace; pointer-events: none; display: none; text-shadow: 0 0 12px currentColor; transition: opacity 0.4s; }
   #msg { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 32px; font-weight: bold; color: #fff; text-shadow: 0 0 20px #f0a; display: none; text-align: center; line-height: 1.6; }
   #winnerBanner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; text-align: center; pointer-events: none; background: rgba(0,0,0,0.82); border: 1px solid #444; border-radius: 14px; padding: 28px 48px 32px; min-width: 280px; }
   #winnerBanner .win-title { font-size: 64px; font-weight: bold; font-family: monospace; letter-spacing: 4px; animation: winPulse 0.7s infinite alternate; line-height: 1.1; }
@@ -39,6 +42,7 @@
   .menu-btn:hover { opacity: 0.82; }
   #mbResume { background: #e63; color: #fff; }
   #mbReset  { background: #333; color: #ddd; border: 1px solid #555; }
+  #mbLobby  { background: #333; color: #ddd; border: 1px solid #555; }
   #menuMapLabel { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: 2px; margin-top: 8px; }
   #menuMapBtns { display: flex; gap: 8px; flex-wrap: wrap; }
   .menu-map-btn { flex: 1; padding: 8px 0; font-family: monospace; font-size: 13px; font-weight: bold; background: #333; border: 1px solid #555; border-radius: 7px; color: #ccc; cursor: pointer; transition: background 0.15s, color 0.15s; }
@@ -67,12 +71,92 @@
   .laps-btn { width:30px; height:30px; background:#333; border:1px solid #555; border-radius:6px; color:#fff; font-size:18px; font-family:monospace; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
   .laps-btn:hover { background:#444; }
   .laps-val { font-size:22px; font-weight:bold; color:#fc0; font-family:monospace; min-width:32px; text-align:center; }
+  .lmap-section { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .lmap-section-label { font-size:11px; color:#777; text-transform:uppercase; letter-spacing:2px; }
+  .lmap-row { display:flex; align-items:center; gap:8px; }
+  .lmap-arrow { width:34px; height:100px; background:#333; border:1px solid #555; border-radius:6px; color:#aaa; font-size:26px; font-family:monospace; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .lmap-arrow:hover { background:#444; color:#fff; }
+  .lmap-viewport { width:220px; overflow:hidden; }
+  .lmap-card { display:flex; flex-direction:column; align-items:center; gap:5px; will-change:transform; }
+  .lmap-name { font-size:15px; font-weight:bold; color:#fff; font-family:monospace; }
+  .lmap-best { font-size:12px; color:#888; font-family:monospace; }
+  .lmap-dots { display:flex; gap:7px; }
+  .lmap-dot { width:6px; height:6px; border-radius:50%; background:#444; transition:background 0.2s; }
+  .lmap-dot.active { background:#e63; }
+  .lobby-ghost-row { display:flex; align-items:center; gap:10px; }
+  .lobby-ghost-btn { padding:7px 18px; font-family:monospace; font-size:13px; font-weight:bold; background:#333; border:1px solid #555; border-radius:7px; color:#aaa; cursor:pointer; transition:background 0.15s, color 0.15s; }
+  .lobby-ghost-btn.active { background:#e63; color:#fff; border-color:#e63; }
+  .nav-corner-btn { position:fixed; top:18px; left:18px; padding:8px 18px; font-family:monospace; font-size:13px; font-weight:bold; background:#222; border:1px solid #444; border-radius:7px; color:#aaa; cursor:pointer; transition:background 0.15s, color 0.15s; z-index:5; display:none; }
+  .nav-corner-btn:hover { background:#333; color:#fff; }
+  #mpScreen { display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
+  #mpScreen h2 { font-size:36px; font-weight:bold; color:#e63; letter-spacing:4px; text-shadow:0 0 20px #e63a; }
 </style>
 </head>
 <body>
+<button class="nav-corner-btn" id="mpBtn">Multiplayer</button>
+<button class="nav-corner-btn" id="mpBack">← Back</button>
+
 <div id="lobbyScreen">
   <h1>CAR GAME</h1>
   <input id="usernameInput" placeholder="Enter your name" maxlength="16" spellcheck="false" />
+  <div class="lmap-section">
+    <div class="lmap-section-label">Select Map</div>
+    <div class="lmap-row">
+      <button class="lmap-arrow" id="lmapLeft">&#8249;</button>
+      <div class="lmap-viewport">
+        <div class="lmap-card" id="lmapCard">
+          <div class="lmap-name" id="lmapName">Classic</div>
+          <canvas id="lmapCanvas" width="200" height="115"></canvas>
+          <div class="lmap-best" id="lmapBest">No best time yet</div>
+        </div>
+      </div>
+      <button class="lmap-arrow" id="lmapRight">&#8250;</button>
+    </div>
+    <div class="lmap-dots">
+      <div class="lmap-dot active" data-i="0"></div>
+      <div class="lmap-dot" data-i="1"></div>
+      <div class="lmap-dot" data-i="2"></div>
+      <div class="lmap-dot" data-i="3"></div>
+      <div class="lmap-dot" data-i="4"></div>
+    </div>
+  </div>
+  <div class="lobby-ghost-row">
+    <span class="laps-label">Ghost</span>
+    <button class="lobby-ghost-btn" id="lobbyGhostOn" onclick="setGhost(true)">On</button>
+    <button class="lobby-ghost-btn active" id="lobbyGhostOff" onclick="setGhost(false)">Off</button>
+  </div>
+  <div class="laps-row">
+    <span class="laps-label">Laps</span>
+    <button class="laps-btn" id="lobbyLapsDec">−</button>
+    <span class="laps-val" id="lobbyLapsVal">5</span>
+    <button class="laps-btn" id="lobbyLapsInc">+</button>
+  </div>
+  <button class="lobby-btn" id="btnSolo">Play Solo</button>
+</div>
+
+<div id="mpScreen">
+  <h2>MULTIPLAYER</h2>
+  <div class="lmap-section">
+    <div class="lmap-section-label">Select Map</div>
+    <div class="lmap-row">
+      <button class="lmap-arrow" id="mpLmapLeft">&#8249;</button>
+      <div class="lmap-viewport">
+        <div class="lmap-card" id="mpLmapCard">
+          <div class="lmap-name" id="mpLmapName">Classic</div>
+          <canvas id="mpLmapCanvas" width="200" height="115"></canvas>
+          <div class="lmap-best" id="mpLmapBest">No best time yet</div>
+        </div>
+      </div>
+      <button class="lmap-arrow" id="mpLmapRight">&#8250;</button>
+    </div>
+    <div class="lmap-dots" id="mpLmapDots">
+      <div class="lmap-dot active" data-i="0"></div>
+      <div class="lmap-dot" data-i="1"></div>
+      <div class="lmap-dot" data-i="2"></div>
+      <div class="lmap-dot" data-i="3"></div>
+      <div class="lmap-dot" data-i="4"></div>
+    </div>
+  </div>
   <div class="lobby-row">
     <button class="lobby-btn" id="btnCreate">Create Room</button>
   </div>
@@ -82,12 +166,10 @@
   </div>
   <div class="laps-row">
     <span class="laps-label">Laps</span>
-    <button class="laps-btn" id="lobbyLapsDec">−</button>
-    <span class="laps-val" id="lobbyLapsVal">5</span>
-    <button class="laps-btn" id="lobbyLapsInc">+</button>
+    <button class="laps-btn" id="mpLapsDec">−</button>
+    <span class="laps-val" id="mpLapsVal">5</span>
+    <button class="laps-btn" id="mpLapsInc">+</button>
   </div>
-  <hr id="lobbyDivider">
-  <button class="lobby-btn" id="btnSolo">Play Solo</button>
   <div id="lobbyStatus"></div>
   <button id="btnStartRace">Start Race ▶</button>
   <p>Share your room code with friends to race together</p>
@@ -98,11 +180,14 @@
   <button id="menuBtn" title="Menu (Esc)"><span></span><span></span><span></span></button>
   <div id="speedDisplay"><span id="speedVal">0</span><span id="speedUnit">km/h</span></div>
   <div id="lapDisplay"><span id="lapDisplayVal">0/5</span><span id="lapDisplayUnit">LAP</span><span id="lapTimeSep">|</span><span id="lapTimeVal">0.0s</span></div>
+  <div id="raceTimer"></div>
+  <div id="splitDisplay"></div>
   <div id="msg"></div>
   <div id="winnerBanner">
     <div class="win-title" id="winnerTitle"></div>
     <div class="win-stats">
-      <div class="win-stat-row"><span class="win-stat-label">Best Lap</span><span class="win-stat-val" id="wsBest">—</span></div>
+      <div class="win-stat-row"><span class="win-stat-label">Best Lap All Time</span><span class="win-stat-val" id="wsAllTimeBest">—</span></div>
+      <div class="win-stat-row"><span class="win-stat-label">Best Lap This Round</span><span class="win-stat-val" id="wsBest">—</span></div>
       <div class="win-stat-row"><span class="win-stat-label">Worst Lap</span><span class="win-stat-val" id="wsWorst">—</span></div>
       <div class="win-stat-row"><span class="win-stat-label">Avg Lap</span><span class="win-stat-val" id="wsAvg">—</span></div>
     </div>
@@ -113,20 +198,15 @@
       <h2>PAUSED</h2>
       <button class="menu-btn" id="mbResume">Resume</button>
       <button class="menu-btn" id="mbReset">Restart Race</button>
+      <button class="menu-btn" id="mbLobby">Back to Lobby</button>
       <div id="menuMapLabel" style="margin-top:4px">USERNAME</div>
       <input id="menuUsernameInput" placeholder="Enter your name" maxlength="16" spellcheck="false" />
-      <div id="menuMapLabel" style="margin-top:4px">LAPS</div>
-      <div class="laps-row">
-        <button class="laps-btn" id="menuLapsDec">−</button>
-        <span class="laps-val" id="menuLapsVal">5</span>
-        <button class="laps-btn" id="menuLapsInc">+</button>
-      </div>
-      <div id="menuMapLabel">SELECT MAP</div>
-      <div id="menuMapBtns">
-        <button class="menu-map-btn active" onclick="switchMap(0)">Classic</button>
-        <button class="menu-map-btn" onclick="switchMap(1)">Oval Sprint</button>
-        <button class="menu-map-btn" onclick="switchMap(2)">City Block</button>
-        <button class="menu-map-btn" onclick="switchMap(3)">Desert Oval</button>
+      <div id="menuGhostSection" style="display:none; width:100%">
+        <div id="menuMapLabel" style="margin-top:4px">GHOST</div>
+        <div style="display:flex; gap:8px">
+          <button class="menu-map-btn"        id="menuGhostOn"  onclick="setGhost(true)">On</button>
+          <button class="menu-map-btn active" id="menuGhostOff" onclick="setGhost(false)">Off</button>
+        </div>
       </div>
     </div>
   </div>
@@ -134,7 +214,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, onDisconnect }
+import { getDatabase, ref, set, get, onValue, onDisconnect }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -154,27 +234,51 @@ let myPlayerId  = null;
 let playerName  = 'Player';
 let roomCode    = null;
 
-function randomColor() {
-  const h = Math.floor(Math.random() * 360);
-  const s = 0.85, l = 0.55;
-  const c = (1 - Math.abs(2*l - 1)) * s;
-  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-  const m = l - c / 2;
-  let r=0, g=0, b=0;
-  if      (h < 60)  { r=c; g=x; b=0; }
-  else if (h < 120) { r=x; g=c; b=0; }
-  else if (h < 180) { r=0; g=c; b=x; }
-  else if (h < 240) { r=0; g=x; b=c; }
-  else if (h < 300) { r=x; g=0; b=c; }
-  else              { r=c; g=0; b=x; }
-  const hex = n => Math.round((n + m) * 255).toString(16).padStart(2, '0');
-  return '#' + hex(r) + hex(g) + hex(b);
+// 8 vivid, well-separated palette colors — each ~45° apart on the hue wheel
+const COLOR_PALETTE = [
+  '#e63333', // red
+  '#e68c00', // orange
+  '#d4c800', // yellow
+  '#33cc44', // green
+  '#00cccc', // cyan
+  '#3366ff', // blue
+  '#9933ff', // purple
+  '#ff33cc', // pink
+];
+
+async function pickColor() {
+  if (!roomCode) return COLOR_PALETTE[0];
+  const snap = await get(ref(db, `rooms/${roomCode}/players`));
+  const takenColors = new Set();
+  if (snap.exists()) {
+    for (const p of Object.values(snap.val())) {
+      if (p.color) takenColors.add(p.color);
+    }
+  }
+  return COLOR_PALETTE.find(c => !takenColors.has(c)) ?? COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)];
 }
-let myColor = randomColor();
+
+let myColor = COLOR_PALETTE[0]; // temporary until joinRoom() assigns a unique one
 let isHost      = false;
 let gameStarted = false;
 let remotePlayers = {};
 let lastSync    = 0;
+let animFrameId  = null;  // for cancelling the game loop
+let myPlayerRef  = null;  // Firebase ref for this player's entry
+let unsubRoom    = null;  // Firebase listener unsubscribe function
+let lobbyMapIndex = 0;    // which map is shown in the lobby carousel
+
+// ── GHOST REPLAY STATE (solo only) ────────────────────────────────────────────
+let ghostFrames          = [];    // positions recorded this run
+let ghostReplay          = [];    // positions from the saved best run
+let ghostIndex           = 0;     // current playback frame
+let ghostSaved           = false; // prevents double-save once car.finished stays true
+let ghostEnabled         = false; // toggled from the pause menu
+let ghostCheckpointTimes = [];    // elapsed race times at each checkpoint in the saved best run
+let ghostRecordingCpTimes = [];   // checkpoint times being collected this run
+let ghostSplitIdx        = 0;     // which ghost checkpoint we compare against next
+let splitFadeTimer       = null;  // setTimeout handle for fading the split display
+let splitHideTimer       = null;  // setTimeout handle for setting display:none after fade
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -284,6 +388,98 @@ const MAPS = [
       STEER_SPEED:  0.022,  // low steer = large turn radius (hard to turn)
     },
   },
+  {
+    name: 'Forest Rally',
+    scrolling: true,
+    // Compact twisty forest rally — world ≈ 2760×650px (much less elongated).
+    // 15 turns: 2 chicanes in top section, fast S-section, right hairpin (far right),
+    // chicane on long bottom straight, left hairpin (far left), final esses to S/F.
+    trackPoints: [
+      {x:400,  y:260},  // 0:  S/F (top-left)
+      {x:620,  y:242},  // 1:  initial straight
+
+      // ── CHICANE 1: tight right-left flick (T1 + T2) ────────────────────────
+      {x:808,  y:210},  // 2:  T1 right entry
+      {x:875,  y:156},  // 3:  T1 apex
+      {x:960,  y:136},  // 4
+      {x:1058, y:150},  // 5:  T2 left entry
+      {x:1115, y:204},  // 6:  T2 apex
+      {x:1125, y:258},  // 7:  T2 exit
+
+      // ── Gentle right sweep (T3) ─────────────────────────────────────────────
+      {x:1228, y:270},  // 8
+      {x:1388, y:256},  // 9:  T3 right apex
+
+      // ── Fast S-section: left–right–left (T4 + T5 + T6) ────────────────────
+      {x:1528, y:220},  // 10: T4 left entry
+      {x:1598, y:175},  // 11: T4 left apex
+      {x:1692, y:150},  // 12: T5 right entry
+      {x:1795, y:135},  // 13: T5 right apex (top-most)
+      {x:1890, y:154},  // 14: T6 left entry
+      {x:1952, y:206},  // 15: T6 left apex
+      {x:1968, y:260},  // 16: T6 exit
+
+      // ── Right-hander (T7) ────────────────────────────────────────────────────
+      {x:1928, y:312},  // 17: T7 right entry
+      {x:1992, y:356},  // 18: T7 right apex
+
+      // ── Connector toward far right ───────────────────────────────────────────
+      {x:2162, y:365},  // 19
+      {x:2352, y:345},  // 20
+
+      // ── RIGHT HAIRPIN — rightmost point (T8) ────────────────────────────────
+      {x:2520, y:295},  // 21: T8 entry
+      {x:2660, y:240},  // 22
+      {x:2730, y:175},  // 23: T8 apex (rightmost)
+      {x:2762, y:242},  // 24
+      {x:2742, y:315},  // 25: T8 exit
+
+      // ── Left-hander sweeping down toward long straight (T9) ─────────────────
+      {x:2660, y:385},  // 26: T9 entry
+      {x:2560, y:455},  // 27: T9 apex
+
+      // ── LONG BOTTOM STRAIGHT ─────────────────────────────────────────────────
+      {x:2355, y:508},  // 28
+      {x:2005, y:530},  // 29
+      {x:1660, y:538},  // 30
+
+      // ── CHICANE 2: right-left on straight (T10 + T11) ───────────────────────
+      {x:1440, y:528},  // 31: T10 right-up entry
+      {x:1330, y:500},  // 32: T10 up apex
+      {x:1228, y:516},  // 33: T11 down
+      {x:1120, y:540},  // 34: T11 exit
+
+      // ── Continue long straight ────────────────────────────────────────────────
+      {x:856,  y:536},  // 35
+      {x:580,  y:524},  // 36
+
+      // ── LEFT HAIRPIN — leftmost point (T12 + T13) ───────────────────────────
+      {x:360,  y:502},  // 37: T12 entry
+      {x:185,  y:462},  // 38: T12 tightening
+      {x:82,   y:400},  // 39
+      {x:62,   y:315},  // 40: T13 apex (leftmost)
+      {x:98,   y:238},  // 41: T13 exit
+
+      // ── Final esses back to S/F (T14 + T15) ─────────────────────────────────
+      {x:180,  y:200},  // 42: T14 right entry
+      {x:262,  y:240},  // 43: T14 apex
+      {x:332,  y:258},  // 44: T15 left → approaching S/F
+      {x:370,  y:258},  // 45
+    ],
+    obstaclePlacements: [
+      [0.05, 0.42],[0.18,-0.40],[0.32, 0.40],
+      [0.50,-0.42],[0.66, 0.40],[0.80,-0.40],[0.92, 0.38],
+    ],
+    carConfig: {
+      MAX_SPEED:    4.8,   // rally car — fast but controllable
+      SPEED_PHASE1: 3.4,
+      OFFTRACK_MAX: 1.5,
+      ACCEL:        0.11,
+      BRAKE:        0.15,
+      FRICTION:     0.983,
+      STEER_SPEED:  0.032,
+    },
+  },
 ];
 
 // Seeded PRNG
@@ -331,10 +527,10 @@ function buildBushes(pts, scrolling) {
   const rand = seededRand(42);
   const n = pts.length;
   // Larger world bounds + more decorations for scrolling maps
-  const xMin = scrolling ? -600 : 20,  xMax = scrolling ? 5000 : 880;
+  const xMin = scrolling ? -600 : 20,  xMax = scrolling ? 5600 : 880;
   const yMin = scrolling ? -300 : 20,  yMax = scrolling ? 1200 : 630;
-  const count1 = scrolling ? 88 : 22;
-  const count2 = scrolling ? 72 : 18;
+  const count1 = scrolling ? 120 : 22;
+  const count2 = scrolling ? 100 : 18;
   const outerOffsets = [110,130,155];
   for (let k = 0; k < count1; k++) {
     const i = Math.floor(rand()*n);
@@ -496,12 +692,28 @@ const car = {
 const keys = {};
 let paused = false;
 
-function openMenu()  { paused = true;  document.getElementById('menuOverlay').classList.add('open'); }
+function openMenu() {
+  paused = true;
+  document.getElementById('menuOverlay').classList.add('open');
+  // Ghost toggle only relevant in solo mode
+  document.getElementById('menuGhostSection').style.display = roomCode ? 'none' : 'block';
+  document.getElementById('menuGhostOn').classList.toggle('active',  ghostEnabled);
+  document.getElementById('menuGhostOff').classList.toggle('active', !ghostEnabled);
+}
 function closeMenu() { paused = false; document.getElementById('menuOverlay').classList.remove('open'); }
+
+function setGhost(enabled) {
+  ghostEnabled = enabled;
+  document.getElementById('menuGhostOn').classList.toggle('active',   enabled);
+  document.getElementById('menuGhostOff').classList.toggle('active',  !enabled);
+  document.getElementById('lobbyGhostOn').classList.toggle('active',  enabled);
+  document.getElementById('lobbyGhostOff').classList.toggle('active', !enabled);
+}
 
 document.getElementById('menuBtn').addEventListener('click', () => paused ? closeMenu() : openMenu());
 document.getElementById('mbResume').addEventListener('click', closeMenu);
 document.getElementById('mbReset').addEventListener('click', () => { closeMenu(); resetGame(); });
+document.getElementById('mbLobby').addEventListener('click', goToLobby);
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { paused ? closeMenu() : openMenu(); return; }
@@ -537,6 +749,7 @@ function resetGame() {
   document.getElementById('winnerBanner').style.display = 'none';
   if (roomCode && isHost) set(ref(db, `rooms/${roomCode}/winner`), null);
   if (MAPS[currentMapIndex].scrolling) { camX = car.x - W/2; camY = car.y - H/2; }
+  if (!roomCode) loadGhost();
 }
 
 // ── LAP SETTINGS ──────────────────────────────────────────────────────────────
@@ -544,13 +757,13 @@ function setLaps(n) {
   n = Math.max(1, Math.min(20, n));
   car.totalLaps = n;
   document.getElementById('lobbyLapsVal').textContent = n;
-  document.getElementById('menuLapsVal').textContent  = n;
+  document.getElementById('mpLapsVal').textContent    = n;
   if (isHost && roomCode) set(ref(db, `rooms/${roomCode}/laps`), n);
 }
 document.getElementById('lobbyLapsDec').onclick = () => setLaps(car.totalLaps - 1);
 document.getElementById('lobbyLapsInc').onclick = () => setLaps(car.totalLaps + 1);
-document.getElementById('menuLapsDec').onclick  = () => setLaps(car.totalLaps - 1);
-document.getElementById('menuLapsInc').onclick  = () => setLaps(car.totalLaps + 1);
+document.getElementById('mpLapsDec').onclick    = () => setLaps(car.totalLaps - 1);
+document.getElementById('mpLapsInc').onclick    = () => setLaps(car.totalLaps + 1);
 
 function switchMap(index) {
   loadMap(index);
@@ -571,7 +784,20 @@ function checkLapCross() {
   for (const cp of checkpoints) {
     if (!cp.hit) {
       const hit = segCross(px, py, cx, cy, cp.ax, cp.ay, cp.bx, cp.by);
-      if (hit !== null) cp.hit = true;
+      if (hit !== null) {
+        cp.hit = true;
+        if (!roomCode && car.raceStarted) {
+          const elapsed = (performance.now() - car.raceStartTime) / 1000;
+          // Always record for this run (needed to save with new best)
+          ghostRecordingCpTimes.push(elapsed);
+          // Show split whenever a saved best run exists (independent of ghost car visibility)
+          if (ghostCheckpointTimes.length > 0 &&
+              ghostSplitIdx < ghostCheckpointTimes.length) {
+            showSplit(elapsed - ghostCheckpointTimes[ghostSplitIdx]);
+          }
+          ghostSplitIdx++;
+        }
+      }
     }
   }
 
@@ -696,7 +922,8 @@ function update() {
 
   // Boundary clamp — use large world bounds for scrolling maps, canvas bounds otherwise
   if (MAPS[currentMapIndex].scrolling) {
-    car.x = Math.max(-500, Math.min(3500, car.x));
+    const xBound = currentMapIndex === 4 ? 3400 : 3500;
+    car.x = Math.max(-500, Math.min(xBound, car.x));
     car.y = Math.max(-300, Math.min(1000, car.y));
   } else {
     car.x = Math.max(5, Math.min(W-5, car.x));
@@ -706,6 +933,34 @@ function update() {
   checkLapCross();
   checkObstacleCollisions();
   spawnParticles();
+
+  // Ghost recording + playback (solo only)
+  if (!roomCode) {
+    if (car.raceStarted && !car.finished) {
+      // Advance ghost playback frame
+      if (ghostReplay.length > 0 && ghostIndex < ghostReplay.length - 1) {
+        ghostIndex++;
+      }
+      // Record this frame's position
+      ghostFrames.push({ x: car.x, y: car.y, angle: car.angle });
+    }
+    // On finish: save if this is a new best time.
+    // ghostSaved flag prevents re-triggering every frame after car.finished stays true.
+    if (car.finished && ghostFrames.length > 0 && !ghostSaved) {
+      ghostSaved = true;
+      const prevBest = parseFloat(localStorage.getItem(`ghost_best_map${currentMapIndex}`)) || Infinity;
+      const thisTime = (performance.now() - car.raceStartTime) / 1000;
+      if (thisTime < prevBest) {
+        localStorage.setItem(`ghost_best_map${currentMapIndex}`, thisTime.toString());
+        localStorage.setItem(`ghost_map${currentMapIndex}`, JSON.stringify({
+          frames: ghostFrames,
+          checkpointTimes: ghostRecordingCpTimes,
+        }));
+      }
+      ghostFrames           = [];
+      ghostRecordingCpTimes = [];
+    }
+  }
 }
 
 // Deterministic window-lit hash (no flicker)
@@ -828,15 +1083,54 @@ function drawDesertBackground() {
   }
 }
 
+function drawForestBackground() {
+  // Dark mossy ground — covers visible world area
+  ctx.fillStyle = '#1e3a1e';
+  ctx.fillRect(camX - 10, camY - 10, W + 20, H + 20);
+
+  // Undergrowth patches (deterministic, world-anchored)
+  const cellSize = 90;
+  const startCX = Math.floor(camX / cellSize) - 1;
+  const startCY = Math.floor(camY / cellSize) - 1;
+  for (let cx = startCX; cx < startCX + W / cellSize + 2; cx++) {
+    for (let cy = startCY; cy < startCY + H / cellSize + 2; cy++) {
+      const h = Math.sin(cx * 37.1 + cy * 19.7) * 43758.5453;
+      const r = h - Math.floor(h);
+      if (r > 0.55) {
+        const wx = cx * cellSize + (r * 70 - 35);
+        const wy = cy * cellSize + (Math.sin(cx * 11 + cy * 7) * 0.5 + 0.5) * cellSize;
+        const rad = 14 + r * 28;
+        const g = Math.floor(50 + r * 35);
+        ctx.fillStyle = `rgba(20,${g},18,${0.35 + r * 0.25})`;
+        ctx.beginPath();
+        ctx.ellipse(wx, wy, rad * 1.8, rad, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Subtle fog/atmosphere overlay at top and bottom edges
+  const fogGrad = ctx.createLinearGradient(0, camY, 0, camY + H);
+  fogGrad.addColorStop(0,   'rgba(30,50,30,0.30)');
+  fogGrad.addColorStop(0.2, 'rgba(0,0,0,0)');
+  fogGrad.addColorStop(0.8, 'rgba(0,0,0,0)');
+  fogGrad.addColorStop(1,   'rgba(10,30,10,0.25)');
+  ctx.fillStyle = fogGrad;
+  ctx.fillRect(camX, camY, W, H);
+}
+
 function drawTrack() {
   const isCity   = currentMapIndex === 2;
   const isDesert = currentMapIndex === 3;
+  const isForest = currentMapIndex === 4;
 
   // --- ENTITY 1: Ground ---
   if (isCity) {
     drawCityBackground();
   } else if (isDesert) {
     drawDesertBackground();
+  } else if (isForest) {
+    drawForestBackground();
   } else {
     ctx.fillStyle = '#3a7d44';
     ctx.fillRect(0, 0, W, H);
@@ -850,7 +1144,7 @@ function drawTrack() {
   ctx.moveTo(outerPts[0].x, outerPts[0].y);
   for (const p of outerPts) ctx.lineTo(p.x, p.y);
   ctx.closePath();
-  ctx.fillStyle = isCity ? '#444' : isDesert ? '#B87B38' : '#C49A5A';
+  ctx.fillStyle = isCity ? '#444' : isDesert ? '#B87B38' : isForest ? '#5a4a30' : '#C49A5A';
   ctx.fill('evenodd');
 
   const sn = splinePts.length;
@@ -901,6 +1195,10 @@ function drawTrack() {
     ctx.strokeStyle = '#e07820';
     ctx.lineWidth = 3;
     ctx.setLineDash([18, 12]);
+  } else if (isForest) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
   } else {
     ctx.strokeStyle = '#5a3010';
     ctx.lineWidth = 3;
@@ -919,7 +1217,7 @@ function drawTrack() {
   ctx.setLineDash([]);
 
   // Center dashed line
-  ctx.strokeStyle = isCity ? 'rgba(255,220,0,0.7)' : isDesert ? 'rgba(255,255,255,0.55)' : 'rgba(200,150,80,0.45)';
+  ctx.strokeStyle = isCity ? 'rgba(255,220,0,0.7)' : isDesert ? 'rgba(255,255,255,0.55)' : isForest ? 'rgba(255,220,0,0.6)' : 'rgba(200,150,80,0.45)';
   ctx.lineWidth = 2;
   ctx.setLineDash([15, 20]);
   ctx.beginPath();
@@ -955,6 +1253,29 @@ function drawTrack() {
 function drawBushes() {
   if (currentMapIndex === 2) return;
   for (const b of bushes) {
+    if (currentMapIndex === 4) {
+      // Forest: pine trees (top-down — dark layered circles)
+      const baseR = b.r * 1.1;
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(b.x + 3, b.y + 5, baseR + 2, baseR * 0.65, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Outer canopy ring
+      const g1 = Math.floor(38 + b.shade * 28);
+      ctx.fillStyle = `rgb(15,${g1},12)`;
+      ctx.beginPath(); ctx.arc(b.x, b.y, baseR, 0, Math.PI * 2); ctx.fill();
+      // Mid canopy
+      ctx.fillStyle = `rgb(22,${g1 + 20},18)`;
+      ctx.beginPath(); ctx.arc(b.x - baseR * 0.15, b.y - baseR * 0.15, baseR * 0.65, 0, Math.PI * 2); ctx.fill();
+      // Top highlight
+      ctx.fillStyle = `rgb(35,${g1 + 38},28)`;
+      ctx.beginPath(); ctx.arc(b.x - baseR * 0.22, b.y - baseR * 0.25, baseR * 0.38, 0, Math.PI * 2); ctx.fill();
+      // Tiny bright tip
+      ctx.fillStyle = `rgba(60,${g1 + 55},45,0.7)`;
+      ctx.beginPath(); ctx.arc(b.x - baseR * 0.28, b.y - baseR * 0.32, baseR * 0.18, 0, Math.PI * 2); ctx.fill();
+      continue;
+    }
     if (currentMapIndex === 3) {
       // Desert: cacti (shade < 0.55) or rocks (shade >= 0.55)
       if (b.shade < 0.55) {
@@ -1253,9 +1574,14 @@ function updateHUD(dt) {
   document.getElementById('speedVal').textContent = spd.toFixed(0);
   document.getElementById('lapDisplayVal').textContent = `${Math.min(car.laps, car.totalLaps)}/${car.totalLaps}`;
 
+  const timerEl = document.getElementById('raceTimer');
   if (car.raceStarted && !car.finished) {
     const elapsed = (performance.now() - car.lapStartTime) / 1000;
     document.getElementById('lapTimeVal').textContent = elapsed.toFixed(1)+'s';
+    timerEl.textContent = elapsed.toFixed(2) + 's';
+    timerEl.style.display = 'block';
+  } else {
+    timerEl.style.display = 'none';
   }
 }
 
@@ -1267,28 +1593,198 @@ function showWinner(title, isYou, stats) {
   document.getElementById('wsBest').textContent  = stats && stats.best  != null ? stats.best.toFixed(2)  + 's' : '—';
   document.getElementById('wsWorst').textContent = stats && stats.worst != null ? stats.worst.toFixed(2) + 's' : '—';
   document.getElementById('wsAvg').textContent   = stats && stats.avg   != null ? stats.avg.toFixed(2)  + 's' : '—';
+
+  // All-time best lap (solo only — stored per map in localStorage)
+  const allTimeEl = document.getElementById('wsAllTimeBest');
+  if (!roomCode && stats && stats.best != null) {
+    const key = `best_lap_map${currentMapIndex}`;
+    const stored = parseFloat(localStorage.getItem(key)) || Infinity;
+    if (stats.best < stored) localStorage.setItem(key, stats.best.toString());
+    const allTime = Math.min(stats.best, stored);
+    allTimeEl.textContent = allTime.toFixed(2) + 's';
+  } else {
+    allTimeEl.textContent = '—';
+  }
+
   document.getElementById('winnerBanner').style.display = 'block';
   car.finished = true;
+}
+
+function loadGhost() {
+  try {
+    const saved = localStorage.getItem(`ghost_map${currentMapIndex}`);
+    if (saved) {
+      const data = JSON.parse(saved);
+      // Support old format (plain array) and new format ({frames, checkpointTimes})
+      ghostReplay          = Array.isArray(data) ? data : (data.frames || []);
+      ghostCheckpointTimes = Array.isArray(data) ? [] : (data.checkpointTimes || []);
+    } else {
+      ghostReplay          = [];
+      ghostCheckpointTimes = [];
+    }
+  } catch (e) {
+    ghostReplay          = [];
+    ghostCheckpointTimes = [];
+  }
+  ghostFrames           = [];
+  ghostRecordingCpTimes = [];
+  ghostIndex            = 0;
+  ghostSplitIdx         = 0;
+  ghostSaved            = false;
+}
+
+function showMainLobby() {
+  document.getElementById('mpScreen').style.display     = 'none';
+  document.getElementById('lobbyScreen').style.display  = 'flex';
+  document.getElementById('mpBtn').style.display        = 'block';
+  document.getElementById('mpBack').style.display       = 'none';
+}
+
+function showMpLobby() {
+  document.getElementById('lobbyScreen').style.display  = 'none';
+  document.getElementById('mpScreen').style.display     = 'flex';
+  document.getElementById('mpBtn').style.display        = 'none';
+  document.getElementById('mpBack').style.display       = 'block';
+  document.getElementById('lobbyStatus').textContent    = '';
+  document.getElementById('btnStartRace').style.display = 'none';
+  drawMapPreview('mpLmapCanvas'); // canvas may not have rendered before first visit
+}
+
+function drawMapPreview(canvasId) {
+  const previewCanvas = document.getElementById(canvasId);
+  if (!previewCanvas) return;
+  const index = lobbyMapIndex;
+  const pctx = previewCanvas.getContext('2d');
+  const pw = previewCanvas.width, ph = previewCanvas.height;
+  pctx.clearRect(0, 0, pw, ph);
+
+  const pts = computeSpline(MAPS[index].trackPoints);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  const pad = 10;
+  const scale = Math.min((pw - pad*2) / (maxX - minX), (ph - pad*2) / (maxY - minY));
+  const ox = pad + ((pw - pad*2) - (maxX - minX) * scale) / 2 - minX * scale;
+  const oy = pad + ((ph - pad*2) - (maxY - minY) * scale) / 2 - minY * scale;
+
+  pctx.strokeStyle = '#888';
+  pctx.lineWidth = 4;
+  pctx.lineJoin = 'round';
+  pctx.lineCap = 'round';
+  pctx.beginPath();
+  pctx.moveTo(pts[0].x * scale + ox, pts[0].y * scale + oy);
+  for (let i = 1; i < pts.length; i++) pctx.lineTo(pts[i].x * scale + ox, pts[i].y * scale + oy);
+  pctx.closePath();
+  pctx.stroke();
+}
+
+function updateLobbyMapDisplay() {
+  const name = MAPS[lobbyMapIndex].name;
+  const best = parseFloat(localStorage.getItem(`best_lap_map${lobbyMapIndex}`));
+  const bestStr = isFinite(best) ? `Best: ${best.toFixed(2)}s` : 'No best time yet';
+
+  document.getElementById('lmapName').textContent   = name;
+  document.getElementById('lmapBest').textContent   = bestStr;
+  document.getElementById('mpLmapName').textContent = name;
+  document.getElementById('mpLmapBest').textContent = bestStr;
+
+  drawMapPreview('lmapCanvas');
+  drawMapPreview('mpLmapCanvas');
+
+  document.querySelectorAll('.lmap-dot').forEach((d, i) => d.classList.toggle('active', i === lobbyMapIndex));
+}
+
+function spinLobbyMap(direction) {
+  const card   = document.getElementById('lmapCard');
+  const mpCard = document.getElementById('mpLmapCard');
+
+  function slideOut(el) {
+    el.style.transition = 'transform 0.15s ease, opacity 0.15s ease';
+    el.style.transform  = direction > 0 ? 'translateX(-115%)' : 'translateX(115%)';
+    el.style.opacity    = '0';
+  }
+  function slideIn(el) {
+    el.style.transition = 'none';
+    el.style.transform  = direction > 0 ? 'translateX(115%)' : 'translateX(-115%)';
+    el.style.opacity    = '0';
+    void el.offsetWidth;
+    el.style.transition = 'transform 0.15s ease, opacity 0.15s ease';
+    el.style.transform  = 'translateX(0)';
+    el.style.opacity    = '1';
+  }
+
+  slideOut(card);
+  slideOut(mpCard);
+
+  setTimeout(() => {
+    lobbyMapIndex = (lobbyMapIndex + direction + MAPS.length) % MAPS.length;
+    loadMap(lobbyMapIndex);
+    resetGame();
+    updateLobbyMapDisplay();
+    slideIn(card);
+    slideIn(mpCard);
+  }, 150);
+}
+
+function goToLobby() {
+  // Stop the game loop
+  cancelAnimationFrame(animFrameId);
+  animFrameId = null;
+
+  // Firebase cleanup (multiplayer)
+  if (unsubRoom)   { unsubRoom(); unsubRoom = null; }
+  if (myPlayerRef) { set(myPlayerRef, null); myPlayerRef = null; }
+
+  // Reset multiplayer state
+  roomCode      = null;
+  isHost        = false;
+  myPlayerId    = null;
+  remotePlayers = {};
+
+  // Reset game state
+  gameStarted = false;
+  closeMenu();
+  clearSplit();
+  resetGame();
+
+  // Reset lobby UI
+  document.getElementById('gameWrapper').style.display  = 'none';
+  document.getElementById('winnerBanner').style.display = 'none';
+  document.getElementById('winnerTitle').textContent    = '';
+  showMainLobby();
+
+  // Sync lobby carousel and ghost buttons to current state
+  lobbyMapIndex = currentMapIndex;
+  updateLobbyMapDisplay();
+  document.getElementById('lobbyGhostOn').classList.toggle('active',  ghostEnabled);
+  document.getElementById('lobbyGhostOff').classList.toggle('active', !ghostEnabled);
 }
 
 function startGame() {
   if (gameStarted) return;
   gameStarted = true;
   document.getElementById('lobbyScreen').style.display = 'none';
+  document.getElementById('mpScreen').style.display    = 'none';
+  document.getElementById('mpBtn').style.display       = 'none';
+  document.getElementById('mpBack').style.display      = 'none';
   document.getElementById('gameWrapper').style.display = 'inline-block';
+  if (!roomCode) loadGhost();
   showStartPrompt();
   requestAnimationFrame(loop);
 }
 
 async function joinRoom() {
-  const playerRef = ref(db, `rooms/${roomCode}/players/${myPlayerId}`);
-  await set(playerRef, { x:0, y:0, angle:0, laps:0, onTrack:true });
-  onDisconnect(playerRef).remove();
+  myColor = await pickColor();
+  myPlayerRef = ref(db, `rooms/${roomCode}/players/${myPlayerId}`);
+  await set(myPlayerRef, { x:0, y:0, angle:0, laps:0, onTrack:true, name: playerName, color: myColor });
+  onDisconnect(myPlayerRef).remove();
   listenToRoom();
 }
 
 function listenToRoom() {
-  onValue(ref(db, `rooms/${roomCode}`), snap => {
+  unsubRoom = onValue(ref(db, `rooms/${roomCode}`), snap => {
     const data = snap.val();
     if (!data) return;
     if (!isHost && data.mapIndex !== undefined && data.mapIndex !== currentMapIndex)
@@ -1347,6 +1843,78 @@ function syncUsername(val) {
 }
 document.getElementById('usernameInput').addEventListener('input', e => syncUsername(e.target.value));
 document.getElementById('menuUsernameInput').addEventListener('input', e => syncUsername(e.target.value));
+
+function clearSplit() {
+  clearTimeout(splitFadeTimer);
+  clearTimeout(splitHideTimer);
+  splitFadeTimer = null;
+  splitHideTimer = null;
+  const el = document.getElementById('splitDisplay');
+  el.style.display = 'none';
+  el.style.opacity = '1';
+}
+
+function showSplit(delta) {
+  clearSplit(); // dismiss any previous split immediately
+  const el = document.getElementById('splitDisplay');
+  el.textContent   = (delta >= 0 ? '+' : '-') + Math.abs(delta).toFixed(2);
+  el.style.color   = delta >= 0 ? '#f44' : '#4f4';
+  el.style.opacity = '1';
+  el.style.display = 'block';
+  splitFadeTimer = setTimeout(() => {
+    el.style.opacity = '0';
+    splitHideTimer = setTimeout(() => {
+      el.style.display = 'none';
+      el.style.opacity = '1';
+    }, 400);
+  }, 2200);
+}
+
+function drawGhost() {
+  // Only in solo, only when enabled, only while race is live, only while ghost has frames left
+  if (roomCode || !ghostEnabled || ghostReplay.length === 0 || !car.raceStarted) return;
+  if (ghostIndex >= ghostReplay.length - 1) return; // ghost has finished — hide it
+
+  const g = ghostReplay[ghostIndex];
+
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  ctx.translate(g.x, g.y);
+  ctx.rotate(g.angle - Math.PI / 2);
+
+  if (currentMapIndex === 3) {
+    // Drag car
+    const cw = 10, ch = 34;
+    ctx.fillStyle = '#bbb';
+    ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,3); ctx.fill();
+    ctx.fillStyle = 'rgba(100,200,255,0.75)';
+    ctx.fillRect(-cw/2+2,-ch/2+6,cw-4,7);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-cw/2-5,-ch/2+3,5,8); ctx.fillRect(cw/2,-ch/2+3,5,8);
+    ctx.fillRect(-cw/2-6,ch/2-11,6,10); ctx.fillRect(cw/2,ch/2-11,6,10);
+  } else {
+    // Standard car
+    const cw = 14, ch = 24;
+    ctx.fillStyle = '#bbb';
+    ctx.beginPath(); ctx.roundRect(-cw/2,-ch/2,cw,ch,4); ctx.fill();
+    ctx.fillStyle = 'rgba(150,220,255,0.7)';
+    ctx.fillRect(-cw/2+3,-ch/2+4,cw-6,ch/2.5);
+    ctx.fillStyle = 'rgba(150,220,255,0.5)';
+    ctx.fillRect(-cw/2+3,ch/2-8,cw-6,5);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-cw/2-3,-ch/2+2,4,7); ctx.fillRect(cw/2-1,-ch/2+2,4,7);
+    ctx.fillRect(-cw/2-3,ch/2-9,4,7);  ctx.fillRect(cw/2-1,ch/2-9,4,7);
+  }
+
+  // Label — un-rotate so text stays upright
+  ctx.rotate(-(g.angle - Math.PI/2));
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('GHOST', 0, -20);
+
+  ctx.restore();
+}
 
 function drawRemotePlayers() {
   for (const [id, p] of Object.entries(remotePlayers)) {
@@ -1423,6 +1991,7 @@ function loop(ts) {
   drawBushes();
   drawObstacles();
   updateAndDrawParticles();
+  drawGhost();
   drawRemotePlayers();
   drawCar();
   if (scrolling) ctx.restore();
@@ -1434,7 +2003,7 @@ function loop(ts) {
   }
 
   updateHUD(dt);
-  requestAnimationFrame(loop);
+  animFrameId = requestAnimationFrame(loop);
 }
 
 // Start prompt (shown once game starts)
@@ -1447,6 +2016,19 @@ function showStartPrompt() {
 
 // Expose to global scope for inline HTML onclick attributes (required for type="module")
 window.switchMap = switchMap;
+window.setGhost  = setGhost;
+
+// Lobby carousel
+document.getElementById('lmapLeft').addEventListener('click',    () => spinLobbyMap(-1));
+document.getElementById('lmapRight').addEventListener('click',   () => spinLobbyMap(1));
+document.getElementById('mpLmapLeft').addEventListener('click',  () => spinLobbyMap(-1));
+document.getElementById('mpLmapRight').addEventListener('click', () => spinLobbyMap(1));
+updateLobbyMapDisplay();
+
+// Lobby navigation
+document.getElementById('mpBtn').addEventListener('click',  showMpLobby);
+document.getElementById('mpBack').addEventListener('click', showMainLobby);
+document.getElementById('mpBtn').style.display = 'block'; // show on page load
 </script>
 </body>
 </html>

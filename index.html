@@ -358,7 +358,7 @@ function showStartPrompt() {
   setTimeout(() => { msg.style.display = 'none'; }, 3000);
 }
 
-function startGame(useAI = false) {
+async function startGame(useAI = false) {
   if (state.gameStarted) return;
   state.gameStarted = true;
   state.aiRaceMode  = !!useAI;
@@ -371,7 +371,7 @@ function startGame(useAI = false) {
   document.getElementById('gameWrapper').style.display = 'inline-block';
   if (!state.roomCode) loadGhost();
   if (state.aiRaceMode) {
-    initAICars();
+    await initAICars();
     state.car.raceStartTime = performance.now();
     state.car.lapStartTime  = state.car.raceStartTime;
     state.car.raceStarted   = true;

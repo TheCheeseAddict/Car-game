@@ -90,4 +90,11 @@ export const state = {
   startGame: null,
 
   soloSetupActive: false,
+
+  // AI race mode
+  aiCars:       [],
+  aiRaceMode:   false,
+  aiCount:      1,
+  aiDifficulty: 'medium',
+  aiFinished:   0,
 };

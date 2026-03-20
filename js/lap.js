@@ -43,6 +43,7 @@ export function checkLapCross() {
         if (car.laps >= car.totalLaps) {
           const totalTime = (now - car.raceStartTime) / 1000;
           const avg = totalTime / car.totalLaps;
+          car.raceFinishTime = now;
           showWinner('WINNER!!', true, { best: car.bestLap, worst: car.worstLap, avg });
           if (roomCode && state.db) {
             set(ref(state.db, `rooms/${roomCode}/winner`), myPlayerId);

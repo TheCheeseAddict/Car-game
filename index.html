@@ -97,6 +97,23 @@
   #soloSetupBox h2 { font-size:24px; font-weight:bold; color:#fff; letter-spacing:2px; margin-bottom:4px; }
   #btnStartSolo { width:100%; padding:13px 0; font-family:monospace; font-size:17px; font-weight:bold; background:#e63; color:#fff; border:none; border-radius:8px; cursor:pointer; margin-top:6px; }
   #btnStartSolo:hover { opacity:0.85; }
+  .setup-mode-row { display:flex; gap:8px; width:100%; }
+  .setup-mode-btn { flex:1; padding:9px 0; font-family:monospace; font-size:14px; font-weight:bold; background:#333; border:1px solid #555; border-radius:7px; color:#aaa; cursor:pointer; transition:background 0.15s, color 0.15s; }
+  .setup-mode-btn.active { background:#e63; color:#fff; border-color:#e63; }
+  #aiRaceOptions { width:100%; display:none; flex-direction:column; gap:10px; border-top:1px solid #333; padding-top:12px; }
+  #aiRaceOptions.visible { display:flex; }
+  .ai-opt-label { font-size:11px; color:#777; text-transform:uppercase; letter-spacing:1px; text-align:center; }
+  .ai-opt-row { display:flex; gap:6px; justify-content:center; }
+  .ai-opt-btn { padding:6px 14px; font-family:monospace; font-size:13px; font-weight:bold; background:#333; border:1px solid #555; border-radius:6px; color:#aaa; cursor:pointer; transition:background 0.15s, color 0.15s; }
+  .ai-opt-btn.active { background:#3388ff; color:#fff; border-color:#3388ff; }
+  #aiResultsOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.82); display:none; align-items:center; justify-content:center; z-index:50; }
+  #aiResultsBox { background:#1a1a1a; border:1px solid #444; border-radius:14px; padding:32px 48px; display:flex; flex-direction:column; align-items:center; gap:16px; min-width:280px; }
+  #aiResultsBox h2 { font-size:24px; font-weight:bold; color:#fc0; letter-spacing:3px; }
+  #aiResultsTable { border-collapse:collapse; font-family:monospace; font-size:15px; }
+  #aiResultsTable td { padding:6px 16px; }
+  #aiResultsTable tr:first-child td { color:#fc0; }
+  #btnAiResultsClose { padding:10px 32px; font-family:monospace; font-size:15px; font-weight:bold; background:#e63; color:#fff; border:none; border-radius:8px; cursor:pointer; margin-top:4px; }
+  #btnAiResultsClose:hover { opacity:0.85; }
 </style>
 </head>
 <body>
@@ -185,7 +202,33 @@
 <div id="soloSetupOverlay">
   <div id="soloSetupBox">
     <h2>SOLO RACE SETUP</h2>
+    <div class="setup-mode-row">
+      <button class="setup-mode-btn active" id="setupModeSolo">Solo Run</button>
+      <button class="setup-mode-btn" id="setupModeAI">Race vs AI</button>
+    </div>
+    <div id="aiRaceOptions">
+      <div class="ai-opt-label">AI Cars</div>
+      <div class="ai-opt-row" id="aiCountRow">
+        <button class="ai-opt-btn active" data-count="1">1</button>
+        <button class="ai-opt-btn" data-count="2">2</button>
+        <button class="ai-opt-btn" data-count="3">3</button>
+      </div>
+      <div class="ai-opt-label">Difficulty</div>
+      <div class="ai-opt-row" id="aiDiffRow">
+        <button class="ai-opt-btn" data-diff="easy">Easy</button>
+        <button class="ai-opt-btn active" data-diff="medium">Medium</button>
+        <button class="ai-opt-btn" data-diff="hard">Hard</button>
+      </div>
+    </div>
     <button id="btnStartSolo">Start Race ▶</button>
+  </div>
+</div>
+
+<div id="aiResultsOverlay">
+  <div id="aiResultsBox">
+    <h2>RACE RESULTS</h2>
+    <table id="aiResultsTable"><tbody id="aiResultsBody"></tbody></table>
+    <button id="btnAiResultsClose">Continue</button>
   </div>
 </div>
 
@@ -238,6 +281,7 @@ import { showMainLobby, showMpLobby, updateLobbyMapDisplay, spinLobbyMap } from 
 import { openMenu, closeMenu, resetGame, setLaps, switchMap, setGhost,
          setupInputListeners } from './js/menu.js';
 import { setupFirebaseButtons, setupSyncUsername, ref, set } from './js/firebase.js';
+import { initAICars, updateAllAI, drawAICars, maybeShowResults } from './js/ai.js';
 
 
 // ── CANVAS INIT ────────────────────────────────────────────────────────────────
@@ -254,41 +298,52 @@ resetGame();
 let last = 0;
 
 function loop(ts) {
-  const dt = ts - last; last = ts;
-  update();
+  try {
+    const dt = ts - last; last = ts;
+    update();
+    updateAllAI(dt);
 
-  // Sync local car to Firebase at 20Hz
-  if (state.roomCode && ts - state.lastSync > 50) {
-    state.lastSync = ts;
-    set(ref(state.db, `rooms/${state.roomCode}/players/${state.myPlayerId}`), {
-      x: Math.round(state.car.x), y: Math.round(state.car.y),
-      angle: +state.car.angle.toFixed(3),
-      laps: state.car.laps, onTrack: state.car.onTrack,
-      name: state.playerName, color: state.myColor,
-    });
+    // Sync local car to Firebase at 20Hz
+    if (state.roomCode && ts - state.lastSync > 50) {
+      state.lastSync = ts;
+      set(ref(state.db, `rooms/${state.roomCode}/players/${state.myPlayerId}`), {
+        x: Math.round(state.car.x), y: Math.round(state.car.y),
+        angle: +state.car.angle.toFixed(3),
+        laps: state.car.laps, onTrack: state.car.onTrack,
+        name: state.playerName, color: state.myColor,
+      });
+    }
+
+    const scrolling = !!MAPS[state.currentMapIndex].scrolling;
+    if (scrolling) { state.camX = state.car.x - W/2; state.camY = state.car.y - H/2; }
+
+    state.ctx.clearRect(0, 0, W, H);
+
+    if (scrolling) { state.ctx.save(); state.ctx.translate(-Math.round(state.camX), -Math.round(state.camY)); }
+    drawTrack();
+    drawBushes();
+    drawObstacles();
+    updateAndDrawParticles();
+    drawGhost();
+    drawRemotePlayers();
+    drawAICars();
+    drawCar();
+    if (scrolling) state.ctx.restore();
+
+    if (state.aiRaceMode && state.car.finished && !state._aiResultsShown) {
+      state._aiResultsShown = true;
+      setTimeout(maybeShowResults, 2000); // show after winner banner appears
+    }
+
+    if (!state.car.onTrack) {
+      state.ctx.fillStyle = 'rgba(255,80,0,0.12)';
+      state.ctx.fillRect(0, 0, W, H);
+    }
+
+    updateHUD();
+  } catch (e) {
+    console.error('[game loop]', e);
   }
-
-  const scrolling = !!MAPS[state.currentMapIndex].scrolling;
-  if (scrolling) { state.camX = state.car.x - W/2; state.camY = state.car.y - H/2; }
-
-  state.ctx.clearRect(0, 0, W, H);
-
-  if (scrolling) { state.ctx.save(); state.ctx.translate(-Math.round(state.camX), -Math.round(state.camY)); }
-  drawTrack();
-  drawBushes();
-  drawObstacles();
-  updateAndDrawParticles();
-  drawGhost();
-  drawRemotePlayers();
-  drawCar();
-  if (scrolling) state.ctx.restore();
-
-  if (!state.car.onTrack) {
-    state.ctx.fillStyle = 'rgba(255,80,0,0.12)';
-    state.ctx.fillRect(0, 0, W, H);
-  }
-
-  updateHUD();
   state.animFrameId = requestAnimationFrame(loop);
 }
 
@@ -310,8 +365,9 @@ function startGame() {
   document.getElementById('mpBack').style.display      = 'none';
   document.getElementById('gameWrapper').style.display = 'inline-block';
   if (!state.roomCode) loadGhost();
+  if (state.aiRaceMode) initAICars();
   showStartPrompt();
-  requestAnimationFrame(loop);
+  state.animFrameId = requestAnimationFrame(loop);
 }
 state.startGame = startGame;
 
@@ -327,6 +383,11 @@ function goToLobby() {
   state.myPlayerId    = null;
   state.remotePlayers = {};
   state.gameStarted   = false;
+  state.aiCars          = [];
+  state.aiRaceMode      = false;
+  state.aiFinished      = 0;
+  state._aiResultsShown = false;
+  document.getElementById('aiResultsOverlay').style.display = 'none';
 
   closeMenu();
   clearSplit();
@@ -350,7 +411,24 @@ setupSyncUsername();
 
 document.getElementById('menuBtn').addEventListener('click', () => state.paused ? closeMenu() : openMenu());
 document.getElementById('mbResume').addEventListener('click', closeMenu);
-document.getElementById('mbReset').addEventListener('click', () => { closeMenu(); resetGame(); });
+function resetWithAI() {
+  resetGame();
+  if (state.aiRaceMode) {
+    state.aiFinished = 0;
+    state._aiResultsShown = false;
+    initAICars();
+    document.getElementById('aiResultsOverlay').style.display = 'none';
+  }
+}
+document.getElementById('mbReset').addEventListener('click', () => { closeMenu(); resetWithAI(); });
+document.addEventListener('keydown', e => {
+  if ((e.key === 'r' || e.key === 'R') && !e.target.matches('input') && state.aiRaceMode) {
+    state.aiFinished = 0;
+    state._aiResultsShown = false;
+    initAICars();
+    document.getElementById('aiResultsOverlay').style.display = 'none';
+  }
+});
 document.getElementById('mbLobby').addEventListener('click', goToLobby);
 
 document.getElementById('lobbyLapsDec').onclick = () => setLaps(state.car.totalLaps - 1);
@@ -364,6 +442,35 @@ document.getElementById('btnSolo').onclick = () => {
 };
 
 document.getElementById('btnStartSolo').addEventListener('click', startGame);
+
+// ── AI SETUP UI ───────────────────────────────────────────────────────────────
+document.getElementById('setupModeSolo').addEventListener('click', () => {
+  state.aiRaceMode = false;
+  document.getElementById('setupModeSolo').classList.add('active');
+  document.getElementById('setupModeAI').classList.remove('active');
+  document.getElementById('aiRaceOptions').classList.remove('visible');
+});
+document.getElementById('setupModeAI').addEventListener('click', () => {
+  state.aiRaceMode = true;
+  document.getElementById('setupModeAI').classList.add('active');
+  document.getElementById('setupModeSolo').classList.remove('active');
+  document.getElementById('aiRaceOptions').classList.add('visible');
+});
+document.getElementById('aiCountRow').addEventListener('click', e => {
+  const btn = e.target.closest('[data-count]');
+  if (!btn) return;
+  state.aiCount = parseInt(btn.dataset.count);
+  document.querySelectorAll('#aiCountRow .ai-opt-btn').forEach(b => b.classList.toggle('active', b === btn));
+});
+document.getElementById('aiDiffRow').addEventListener('click', e => {
+  const btn = e.target.closest('[data-diff]');
+  if (!btn) return;
+  state.aiDifficulty = btn.dataset.diff;
+  document.querySelectorAll('#aiDiffRow .ai-opt-btn').forEach(b => b.classList.toggle('active', b === btn));
+});
+document.getElementById('btnAiResultsClose').addEventListener('click', () => {
+  document.getElementById('aiResultsOverlay').style.display = 'none';
+});
 
 document.getElementById('lmapLeft').addEventListener('click',    () => spinLobbyMap(-1));
 document.getElementById('lmapRight').addEventListener('click',   () => spinLobbyMap(1));

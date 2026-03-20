@@ -1,6 +1,6 @@
 # Car Game
 
-A top-down browser racing game with multiplayer support, multiple maps, ghost replay, and realistic car physics. Built entirely in a single HTML file — no install required.
+A top-down browser racing game with multiplayer support, AI opponents, multiple maps, ghost replay, and realistic car physics. No install required.
 
 ---
 
@@ -36,7 +36,18 @@ Large scrolling world (~2620 × 660px). Long straights with smooth U-turns. Sand
 - Higher friction when turning, causing speed loss in corners
 
 ### 5. Forest Rally
-Scrolling rally stage (~2760 × 650px) with 46 waypoints including hairpins, chicanes, and S-sections. Dark atmosphere with fog overlay and pine trees. Modified physics with lower top speed and higher friction.
+Scrolling rally stage (~2760 × 650px) with 46 waypoints including hairpins, chicanes, and S-sections. 7 log obstacles (box collision). Dark atmosphere with fog overlay and pine trees. Modified physics with lower top speed and higher friction.
+
+---
+
+## Solo Race Setup
+
+When you click **Play Solo**, a setup screen appears before the race:
+
+- **Mode** — choose Solo (ghost replay) or AI Race (race against bots)
+- **AI Cars** — select 1, 2, or 3 AI opponents (AI Race only)
+- **Difficulty** — Easy, Medium, or Hard (AI Race only)
+- **Laps** — set the lap count for the race
 
 ---
 
@@ -44,6 +55,18 @@ Scrolling rally stage (~2760 × 650px) with 46 waypoints including hairpins, chi
 
 ### Solo
 Race against yourself with ghost replay. The game records your best lap and plays it back as a semi-transparent ghost car on future runs. Split times appear at each checkpoint showing whether you're ahead or behind your best.
+
+### AI Race
+Race against up to 3 AI-controlled bots on any map. Bots are named **CYBORG**, **BLAZE**, and **SPECTER**, each with a unique color and slightly different driving personality (racing line offset, corner braking bias, steering smoothness). AI cars navigate via spline waypoints, avoid obstacles, and adapt their speed to upcoming corners.
+
+#### Difficulty levels
+| Difficulty | Steering noise | Lookahead | Corner braking |
+|------------|---------------|-----------|----------------|
+| Easy | High (more drift) | 16 pts | 58 % of max speed |
+| Medium | Low | 20 pts | 50 % of max speed |
+| Hard | Very low | 26 pts | 42 % of max speed |
+
+After the race ends, a results overlay shows the final standings with finish times or current lap progress for unfinished AI cars.
 
 ### Multiplayer
 Real-time competitive racing via Firebase Realtime Database. Up to 8 players per room.
@@ -152,6 +175,7 @@ Speed is capped at 1.5 px/frame and friction increases when the car leaves the t
 - Back to Lobby
 - Change username
 - Toggle ghost (solo mode)
+- Toggle obstacles on / off
 
 ### Lobby
 - Map carousel with preview and best lap time
@@ -163,14 +187,15 @@ Speed is capped at 1.5 px/frame and friction increases when the car leaves the t
 
 ## Technical Details
 
-- Single file: `index.html` — no dependencies, no build step
+- Modular ES module architecture: `index.html` + `js/` directory (`state.js`, `maps.js`, `track.js`, `physics.js`, `rendering.js`, `hud.js`, `lap.js`, `lobby.js`, `menu.js`, `firebase.js`, `ai.js`)
 - Firebase Realtime Database for multiplayer sync (europe-west1 region)
-- ES module script for Firebase SDK imports
 - Canvas 2D rendering at 60 FPS via `requestAnimationFrame`
 - Catmull-Rom spline interpolation for smooth track curves
 - Seeded PRNG for deterministic map decorations (same visuals every time)
 - Ghost replay stored in `localStorage` per map
 - `onDisconnect().remove()` for automatic Firebase cleanup on tab close
+- Particle system for visual effects
+- AI navigation via evenly-spaced spline sub-points with forward-only index advancement to prevent inner-track snapping
 
 ---
 

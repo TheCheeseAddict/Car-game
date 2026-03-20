@@ -5,17 +5,37 @@ import { showWinner } from './hud.js';
 const AI_COLORS = ['#3388ff', '#33cc55', '#cc33ff'];
 const AI_NAMES  = ['CYBORG', 'BLAZE', 'SPECTER'];
 
-// speedFactor: fraction of MAX_SPEED | steerFactor: steering aggressiveness
-// noiseAmp: random angle jitter per frame | lookahead: waypoints to look ahead
+// noiseAmp: max correlated drift | steerSmooth: steering inertia (higher = snappier)
+// cornerBias: min speed fraction in corners (lower = harder braking)
 const DIFF_CONFIG = {
-  easy:   { speedFactor: 0.68, steerFactor: 0.7,  noiseAmp: 0.018, lookahead: 16 },
-  medium: { speedFactor: 0.82, steerFactor: 0.85, noiseAmp: 0.008, lookahead: 20 },
-  hard:   { speedFactor: 0.96, steerFactor: 1.0,  noiseAmp: 0.001, lookahead: 26 },
+  easy:   { noiseAmp: 0.014, lookahead: 16, steerSmooth: 0.10, cornerBias: 0.58 },
+  medium: { noiseAmp: 0.007, lookahead: 20, steerSmooth: 0.16, cornerBias: 0.50 },
+  hard:   { noiseAmp: 0.003, lookahead: 26, steerSmooth: 0.24, cornerBias: 0.42 },
 };
+
+const AI_SUBPOINT_COUNT = 15;
+const AI_SUBPOINT_RADIUS = 40; // px — how close before advancing to next sub-point
 
 export function initAICars() {
   const { splinePts, NSPLINE, aiCount, aiDifficulty } = state;
   const cfg = DIFF_CONFIG[aiDifficulty] || DIFF_CONFIG.medium;
+
+  // Build 15 evenly-spaced navigation sub-points along the spline center line.
+  // Each stores a perpendicular vector so cars can aim for different parts of the gate.
+  // These are only used by AI for steering — they never affect lap/timer logic.
+  state.aiSubpoints = [];
+  for (let s = 0; s < AI_SUBPOINT_COUNT; s++) {
+    const idx  = Math.floor(s * NSPLINE / AI_SUBPOINT_COUNT);
+    const next = (idx + 1) % NSPLINE;
+    const dx = splinePts[next].x - splinePts[idx].x;
+    const dy = splinePts[next].y - splinePts[idx].y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    state.aiSubpoints.push({
+      x: splinePts[idx].x, y: splinePts[idx].y,
+      nx:  dy / len,  // perpendicular (90° clockwise from tangent)
+      ny: -dx / len,
+    });
+  }
 
   state.aiCars = [];
   state.aiFinished = 0;
@@ -27,6 +47,17 @@ export function initAICars() {
     const spNext = splinePts[(startIdx + 1) % NSPLINE];
     const startAngle = Math.atan2(spNext.y - sp.y, spNext.x - sp.x);
 
+    // Find the first sub-point ahead of this car's starting spline position
+    let startSubIdx = 0;
+    let minFwdDist = NSPLINE;
+    for (let s = 0; s < AI_SUBPOINT_COUNT; s++) {
+      const subSplinePos = Math.floor(s * NSPLINE / AI_SUBPOINT_COUNT);
+      const fwdDist = (subSplinePos - startIdx + NSPLINE) % NSPLINE;
+      if (fwdDist < minFwdDist) { minFwdDist = fwdDist; startSubIdx = s; }
+    }
+
+    // Per-car personality — random variation within the difficulty's range
+    const rand = () => Math.random() * 2 - 1; // [-1, 1]
     state.aiCars.push({
       name:  AI_NAMES[i % AI_NAMES.length],
       color: AI_COLORS[i % AI_COLORS.length],
@@ -37,11 +68,19 @@ export function initAICars() {
       splineIdx: startIdx,    // cached nearest spline index
       laps: 0,
       checkpointsHit: new Array(state.checkpoints.length).fill(false),
+      nextSubIdx: startSubIdx, // index into state.aiSubpoints — navigation target
+
+      // Individuality
+      lineOffset:   rand() * 22,                          // lateral offset from track center (px)
+      steerInput:   0,                                    // smoothed steering value
+      steerAmount:  0,                                    // steering buildup (same as player car.steerAmount)
+      steerSmooth:  cfg.steerSmooth + rand() * 0.04,      // how fast steering reacts
+      cornerBias:   cfg.cornerBias  + rand() * 0.06,      // min speed fraction in tight corners
+      noiseOffset:  0,                                    // current correlated drift angle
+      noiseAmp:     cfg.noiseAmp    + rand() * 0.003,
+
       finished: false,
       finishTime: null,
-      speedFactor: cfg.speedFactor,
-      steerFactor: cfg.steerFactor,
-      noiseAmp:    cfg.noiseAmp,
       lookahead:   cfg.lookahead,
     });
   }
@@ -49,23 +88,24 @@ export function initAICars() {
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
-// Full scan to find the true nearest spline point, but only accept it if it
-// is within 30% of the track ahead (modular). This prevents snapping backward
-// on looped tracks while still recovering correctly when off-track.
+// Greedy forward advance: step forward only while the next spline point is
+// closer to the car than the current one. Never goes backward, which prevents
+// inner-track snapping on oval maps where inner/outer points are equidistant.
 function findNearestSplineIdx(ai) {
   const pts = state.splinePts;
   const N   = state.NSPLINE;
-  let best = ai.splineIdx, bestDist = Infinity;
-  for (let i = 0; i < N; i++) {
-    const pt = pts[i];
-    const dx = ai.x - pt.x, dy = ai.y - pt.y;
-    const d  = dx * dx + dy * dy;
-    if (d < bestDist) { bestDist = d; best = i; }
+  for (let guard = 0; guard < N; guard++) {
+    const curr = pts[ai.splineIdx];
+    const next = pts[(ai.splineIdx + 1) % N];
+    const dxC = ai.x - curr.x, dyC = ai.y - curr.y;
+    const dxN = ai.x - next.x, dyN = ai.y - next.y;
+    if (dxN * dxN + dyN * dyN < dxC * dxC + dyC * dyC) {
+      ai.splineIdx = (ai.splineIdx + 1) % N;
+    } else {
+      break;
+    }
   }
-  // Only advance forward — reject if the found index is further than 30% of
-  // the track *behind* the current index (i.e. require it to be in the forward arc).
-  const diff = (best - ai.splineIdx + N) % N;
-  return diff < Math.floor(N * 0.7) ? best : ai.splineIdx;
+  return ai.splineIdx;
 }
 
 // Returns 0 (sharp corner ahead) → 1 (straight ahead).
@@ -87,6 +127,7 @@ function getCornerFactor(nearestIdx, lookAhead) {
 
 // Mirrors checkObstacleCollisions() from rendering.js but for an AI car object.
 function checkAIObstacles(ai) {
+  if (!state.obstaclesEnabled) return;
   const { obstacles, currentMapIndex } = state;
   const carR = 8;
   for (const o of obstacles) {
@@ -144,8 +185,9 @@ function checkAILapCross(ai) {
   for (let i = 0; i < checkpoints.length; i++) {
     if (!ai.checkpointsHit[i]) {
       const cp = checkpoints[i];
-      if (segCross(px, py, cx, cy, cp.ax, cp.ay, cp.bx, cp.by) !== null)
+      if (segCross(px, py, cx, cy, cp.ax, cp.ay, cp.bx, cp.by) !== null) {
         ai.checkpointsHit[i] = true;
+      }
     }
   }
 
@@ -171,7 +213,7 @@ export function updateAllAI(_dt) {
   if (!state.aiRaceMode || !state.aiCars.length) return;
   if (state.paused) return;
 
-  const { splinePts, NSPLINE, currentMapIndex } = state;
+  const { currentMapIndex } = state;
 
   for (const ai of state.aiCars) {
     if (ai.finished) continue;
@@ -179,57 +221,119 @@ export function updateAllAI(_dt) {
     // 1. Locate car on spline
     ai.splineIdx = findNearestSplineIdx(ai);
 
-    // 2. Corner factor: 0 = sharp bend, 1 = straight (used for both lookahead and speed)
+    // 2. Corner factor: 0 = sharp bend, 1 = straight (used for speed scaling)
     const cf = getCornerFactor(ai.splineIdx, 22);
 
-    // 3. Pick a target point ahead — shorter lookahead through tight corners
-    const dynamicLookahead = Math.max(5, Math.round(ai.lookahead * (0.35 + 0.65 * cf)));
-    const targetIdx = (ai.splineIdx + dynamicLookahead) % NSPLINE;
-    const target = splinePts[targetIdx];
+    // 3. Advance to next sub-point when close enough; each car aims for a
+    //    laterally-offset position so they take different racing lines.
+    const sub = state.aiSubpoints[ai.nextSubIdx];
+    const dxS = sub.x - ai.x, dyS = sub.y - ai.y;
+    if (dxS * dxS + dyS * dyS < AI_SUBPOINT_RADIUS * AI_SUBPOINT_RADIUS) {
+      ai.nextSubIdx = (ai.nextSubIdx + 1) % AI_SUBPOINT_COUNT;
+    }
+    const tgt = state.aiSubpoints[ai.nextSubIdx];
+    let targetX = tgt.x + ai.lineOffset * tgt.nx;
+    let targetY = tgt.y + ai.lineOffset * tgt.ny;
 
-    // 4. Steer angle toward target (clamped to steer rate)
-    const desiredAngle = Math.atan2(target.y - ai.y, target.x - ai.x);
+    // 4. Heading from current angle — computed BEFORE steering (same as player)
+    const hx = Math.cos(ai.angle), hy = Math.sin(ai.angle);
+    const longSpd = ai.vx * hx + ai.vy * hy;
+    const spd     = Math.abs(longSpd);
+
+    // 5. Obstacle avoidance: scan ahead and deflect the target sideways away
+    //    from any obstacle that lies in the forward path.
+    if (state.obstaclesEnabled) {
+      const avoidRange = 110;
+      for (const o of state.obstacles) {
+        const odx = o.x - ai.x, ody = o.y - ai.y;
+        const odist = Math.sqrt(odx * odx + ody * ody);
+        if (odist < 1 || odist > avoidRange) continue;
+        const fwdDot  = (odx * hx  + ody * hy)  / odist; // 1 = straight ahead
+        if (fwdDot < 0.1) continue;                       // ignore behind/beside
+        const sideDot = (odx * (-hy) + ody * hx) / odist; // +1 = obstacle left of car
+        const effR    = (currentMapIndex === 2 ? o.r * 2.4 : o.r * 1.6) + 14;
+        if (Math.abs(sideDot) * odist > effR) continue;   // car won't hit it
+        // Push target to the opposite side of the obstacle
+        const strength = (1 - odist / avoidRange) * effR * 1.5;
+        const pushSign = sideDot >= 0 ? 1 : -1; // push right if obstacle on left
+        targetX += hy  *  pushSign * strength;   // (hy, -hx) = right perpendicular
+        targetY += -hx *  pushSign * strength;
+      }
+    }
+
+    // 6. Speed-dependent steer rate — identical formula to player
+    let steerAmt;
+    if (currentMapIndex === 3) {
+      const SPD_LOW = 2.0, SPD_HIGH = state.MAX_SPEED;
+      if (spd <= SPD_LOW) {
+        steerAmt = 0.055 * (spd / 3.25);
+      } else {
+        const STEER_LOW = 0.055 * (SPD_LOW / 3.25);
+        const t = Math.min(1, (spd - SPD_LOW) / (SPD_HIGH - SPD_LOW));
+        steerAmt = STEER_LOW + (0.010 - STEER_LOW) * (t * t);
+      }
+    } else {
+      steerAmt = state.STEER_SPEED * (spd / state.MAX_SPEED);
+    }
+
+    // 7. Smooth AI steering toward (possibly avoidance-adjusted) target
+    const desiredAngle = Math.atan2(targetY - ai.y, targetX - ai.x);
     let angleDiff = desiredAngle - ai.angle;
     while (angleDiff >  Math.PI) angleDiff -= 2 * Math.PI;
     while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-    const steerRate = state.STEER_SPEED * ai.steerFactor * 2.5;
-    ai.angle += Math.max(-steerRate, Math.min(steerRate, angleDiff));
+    const desiredSteer = Math.max(-steerAmt, Math.min(steerAmt, angleDiff * 0.4));
+    ai.steerInput += (desiredSteer - ai.steerInput) * ai.steerSmooth;
 
-    // 5. Slight random jitter (lower difficulties weave more)
-    if (ai.noiseAmp > 0) ai.angle += (Math.random() - 0.5) * 2 * ai.noiseAmp;
+    // 8. Correlated noise — drifts gradually and decays; far less robotic than white noise
+    ai.noiseOffset += (Math.random() - 0.5) * ai.noiseAmp;
+    ai.noiseOffset *= 0.90;
 
-    // 6. Determine speed limit (mirrors player: on-track vs off-track)
-    const onTrack = pointOnTrack(ai.x, ai.y);
-    const maxSpd  = onTrack ? state.MAX_SPEED * ai.speedFactor : state.OFFTRACK_MAX;
+    // 9. steerAmount buildup/decay (same values as player: +0.06 / -0.04, cap 0.7).
+    //    Threshold is based on angleDiff so it doesn't falsely trigger at near-zero
+    //    speeds where steerAmt ≈ 0 would make any tiny steerInput count as "turning".
+    const isTurning = Math.abs(angleDiff) > 0.08;
+    if (isTurning) {
+      ai.steerAmount = Math.min(0.7, ai.steerAmount + 0.06);
+    } else {
+      ai.steerAmount = Math.max(0, ai.steerAmount - 0.04);
+    }
 
-    // 7. Reduce speed before sharp corners (reuse cf from above)
-    const targetSpd = maxSpd * (0.55 + 0.45 * cf); // 55–100% of max based on curvature
+    // 9. On-track check and speed target
+    const onTrack  = pointOnTrack(ai.x, ai.y);
+    const maxSpd   = onTrack ? state.MAX_SPEED : state.OFFTRACK_MAX;
+    const targetSpd = maxSpd * (ai.cornerBias + (1 - ai.cornerBias) * cf);
 
-    // 8. Accelerate toward target speed (same two-phase as player)
-    const hx = Math.cos(ai.angle), hy = Math.sin(ai.angle);
-    const spd = Math.sqrt(ai.vx * ai.vx + ai.vy * ai.vy);
-    if (spd < targetSpd) {
-      const accelMult = spd > state.SPEED_PHASE1 ? 0.55 : 1.0;
+    // 10. Accelerate toward target speed — same two-phase as player
+    const curSpd = Math.sqrt(ai.vx * ai.vx + ai.vy * ai.vy);
+    if (curSpd < targetSpd) {
+      const accelMult = curSpd > state.SPEED_PHASE1 ? 0.55 : 1.0;
       ai.vx += hx * state.ACCEL * accelMult;
       ai.vy += hy * state.ACCEL * accelMult;
     }
 
-    // 8. Hard speed cap
-    const totalSpd = Math.sqrt(ai.vx * ai.vx + ai.vy * ai.vy);
-    if (totalSpd > maxSpd) { ai.vx *= maxSpd / totalSpd; ai.vy *= maxSpd / totalSpd; }
+    // 11. Speed cap with reverse penalty — same as player
+    const totalSpd    = Math.sqrt(ai.vx * ai.vx + ai.vy * ai.vy);
+    const effectiveMax = longSpd >= 0 ? maxSpd : maxSpd * 0.5;
+    if (totalSpd > effectiveMax) { ai.vx *= effectiveMax / totalSpd; ai.vy *= effectiveMax / totalSpd; }
 
-    // 9. Lateral grip — bleeds off sideways velocity (same values as player)
-    const longSpd = ai.vx * hx + ai.vy * hy;
-    const grip = onTrack ? (currentMapIndex === 3 ? 0.38 : 0.58) : 0.42;
-    ai.vx -= (ai.vx - longSpd * hx) * grip;
-    ai.vy -= (ai.vy - longSpd * hy) * grip;
+    // 12. Lateral grip modified by steerAmount — identical to player
+    const baseGrip = onTrack ? (currentMapIndex === 3 ? 0.38 : 0.58) : 0.42;
+    const grip     = Math.max(0.07, baseGrip - ai.steerAmount * 0.85);
+    const latVx = ai.vx - longSpd * hx;
+    const latVy = ai.vy - longSpd * hy;
+    ai.vx -= latVx * grip;
+    ai.vy -= latVy * grip;
 
-    // 10. Friction (same as player)
-    const friction = onTrack ? state.FRICTION : 0.94;
+    // 13. Friction — same as player; map 3 reduces it when steering
+    let friction = onTrack ? state.FRICTION : 0.94;
+    if (currentMapIndex === 3) friction *= (1 - ai.steerAmount * 0.06);
     ai.vx *= friction;
     ai.vy *= friction;
 
-    // 11. Obstacle collisions (same logic as player)
+    // 14. Apply steering + noise to angle — AFTER physics, same order as player
+    ai.angle += ai.steerInput + ai.noiseOffset;
+
+    // 15. Obstacle collisions (same logic as player)
     checkAIObstacles(ai);
 
     // 12. Move

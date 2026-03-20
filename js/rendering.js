@@ -328,6 +328,7 @@ export function drawBushes() {
 }
 
 export function drawObstacles() {
+  if (!state.obstaclesEnabled) return;
   const ctx = state.ctx;
   const { obstacles, currentMapIndex } = state;
   if (currentMapIndex === 2) {
@@ -400,6 +401,7 @@ export function drawObstacles() {
 }
 
 export function checkObstacleCollisions() {
+  if (!state.obstaclesEnabled) return;
   const { obstacles, currentMapIndex, car } = state;
   const carR = 8;
   for (const o of obstacles) {

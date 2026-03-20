@@ -93,8 +93,12 @@ export const state = {
 
   // AI race mode
   aiCars:       [],
+  aiSubpoints:  [],   // 15 evenly-spaced navigation waypoints, built by initAICars
   aiRaceMode:   false,
   aiCount:      1,
   aiDifficulty: 'medium',
   aiFinished:   0,
+
+  // Obstacle toggle
+  obstaclesEnabled: true,
 };

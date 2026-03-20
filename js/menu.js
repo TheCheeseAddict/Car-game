@@ -48,13 +48,6 @@ export function resetGame() {
   if (MAPS[currentMapIndex].scrolling) { state.camX = car.x - W/2; state.camY = car.y - H/2; }
   if (!roomCode) loadGhost();
 
-  state.raceResults    = [];
-  state.resultsVisible = false;
-  clearTimeout(state.resultsTimer);
-  state.resultsTimer   = null;
-  const ro = document.getElementById('resultsOverlay');
-  if (ro) ro.classList.remove('open');
-  if (state.aiRaceMode) state.initAICars?.();
 }
 
 export function setLaps(n) {

@@ -1,5 +1,4 @@
 import { state } from './state.js';
-import { maybeShowResults } from './ai.js';
 
 export function updateHUD() {
   const { car } = state;
@@ -39,19 +38,6 @@ export function showWinner(title, isYou, stats) {
 
   document.getElementById('winnerBanner').style.display = 'block';
   state.car.finished = true;
-
-  if (state.aiRaceMode && !state.resultsVisible) {
-    const playerTime = state.car.raceStartTime
-      ? (performance.now() - state.car.raceStartTime) / 1000
-      : 0;
-    state.raceResults.push({
-      name: state.playerName || 'Player',
-      time: playerTime,
-      position: state.raceResults.length + 1,
-      isPlayer: true,
-    });
-    maybeShowResults();
-  }
 }
 
 export function loadGhost() {

@@ -95,33 +95,8 @@
   #soloSetupOverlay.open { display:flex; }
   #soloSetupBox { background:#1a1a1a; border:1px solid #444; border-radius:14px; padding:32px 44px; display:flex; flex-direction:column; align-items:center; gap:16px; min-width:300px; }
   #soloSetupBox h2 { font-size:24px; font-weight:bold; color:#fff; letter-spacing:2px; margin-bottom:4px; }
-  .setup-label { font-size:11px; color:#777; text-transform:uppercase; letter-spacing:2px; align-self:flex-start; }
-  .setup-toggle-row { display:flex; gap:8px; width:100%; }
-  .setup-toggle-btn { flex:1; padding:9px 0; font-family:monospace; font-size:14px; font-weight:bold; background:#333; border:1px solid #555; border-radius:7px; color:#aaa; cursor:pointer; transition:background 0.15s,color 0.15s; }
-  .setup-toggle-btn.active { background:#e63; color:#fff; border-color:#e63; }
-  .setup-count-row, .setup-diff-row { display:flex; gap:8px; }
-  .setup-num-btn { width:42px; height:36px; font-family:monospace; font-size:17px; font-weight:bold; background:#333; border:1px solid #555; border-radius:7px; color:#aaa; cursor:pointer; transition:background 0.15s,color 0.15s; }
-  .setup-num-btn.active { background:#3366ff; color:#fff; border-color:#3366ff; }
-  .setup-diff-btn { padding:9px 18px; font-family:monospace; font-size:13px; font-weight:bold; background:#333; border:1px solid #555; border-radius:7px; color:#aaa; cursor:pointer; transition:background 0.15s,color 0.15s; }
-  .setup-diff-btn.active { background:#2a2; color:#fff; border-color:#2a2; }
   #btnStartSolo { width:100%; padding:13px 0; font-family:monospace; font-size:17px; font-weight:bold; background:#e63; color:#fff; border:none; border-radius:8px; cursor:pointer; margin-top:6px; }
   #btnStartSolo:hover { opacity:0.85; }
-  /* Results overlay */
-  #resultsOverlay { position:absolute; inset:0; background:rgba(0,0,0,0.82); display:none; align-items:center; justify-content:center; z-index:25; }
-  #resultsOverlay.open { display:flex; }
-  #resultsBox { background:#1a1a1a; border:1px solid #444; border-radius:14px; padding:32px 52px; display:flex; flex-direction:column; align-items:center; gap:18px; min-width:320px; }
-  #resultsBox h2 { font-size:28px; font-weight:bold; color:#fc0; letter-spacing:3px; }
-  #resultsTable { width:100%; border-collapse:collapse; font-family:monospace; font-size:15px; }
-  #resultsTable th { color:#777; font-size:11px; text-transform:uppercase; letter-spacing:1px; padding-bottom:8px; text-align:left; }
-  #resultsTable td { padding:6px 0; border-top:1px solid #2a2a2a; }
-  #resultsTable .pos-col { color:#fc0; font-weight:bold; width:32px; }
-  #resultsTable .name-col { color:#fff; }
-  #resultsTable .time-col { color:#f80; text-align:right; }
-  #resultsTable .player-row td { color:#4df; }
-  .results-btn-row { display:flex; gap:12px; margin-top:4px; }
-  .results-btn { padding:10px 28px; font-family:monospace; font-size:14px; font-weight:bold; border:none; border-radius:8px; cursor:pointer; }
-  #resultsAgain { background:#e63; color:#fff; }
-  #resultsMenu  { background:#333; color:#ddd; border:1px solid #555; }
 </style>
 </head>
 <body>
@@ -210,25 +185,6 @@
 <div id="soloSetupOverlay">
   <div id="soloSetupBox">
     <h2>SOLO RACE SETUP</h2>
-    <span class="setup-label">Mode</span>
-    <div class="setup-toggle-row">
-      <button class="setup-toggle-btn active" id="setupModeTimeTrial">Time Trial</button>
-      <button class="setup-toggle-btn" id="setupModeRaceAI">Race vs AI</button>
-    </div>
-    <div id="aiRaceOptions" style="display:none; flex-direction:column; align-items:center; gap:12px; width:100%">
-      <span class="setup-label">Opponents</span>
-      <div class="setup-count-row">
-        <button class="setup-num-btn active" data-count="1">1</button>
-        <button class="setup-num-btn" data-count="2">2</button>
-        <button class="setup-num-btn" data-count="3">3</button>
-      </div>
-      <span class="setup-label">Difficulty</span>
-      <div class="setup-diff-row">
-        <button class="setup-diff-btn active" data-diff="easy">Easy</button>
-        <button class="setup-diff-btn" data-diff="medium">Medium</button>
-        <button class="setup-diff-btn" data-diff="hard">Hard</button>
-      </div>
-    </div>
     <button id="btnStartSolo">Start Race ▶</button>
   </div>
 </div>
@@ -251,19 +207,6 @@
     </div>
   </div>
   <div id="controls">Arrow Keys / WASD to drive &nbsp;|&nbsp; R to reset &nbsp;|&nbsp; Esc to pause</div>
-  <div id="resultsOverlay">
-    <div id="resultsBox">
-      <h2>RACE RESULTS</h2>
-      <table id="resultsTable">
-        <thead><tr><th class="pos-col">#</th><th class="name-col">Name</th><th class="time-col">Time</th></tr></thead>
-        <tbody id="resultsBody"></tbody>
-      </table>
-      <div class="results-btn-row">
-        <button class="results-btn" id="resultsAgain">Race Again</button>
-        <button class="results-btn" id="resultsMenu">Main Menu</button>
-      </div>
-    </div>
-  </div>
   <div id="menuOverlay">
     <div id="menuBox">
       <h2>PAUSED</h2>
@@ -295,7 +238,7 @@ import { showMainLobby, showMpLobby, updateLobbyMapDisplay, spinLobbyMap } from 
 import { openMenu, closeMenu, resetGame, setLaps, switchMap, setGhost,
          setupInputListeners } from './js/menu.js';
 import { setupFirebaseButtons, setupSyncUsername, ref, set } from './js/firebase.js';
-import { initAICars, updateAllAI, drawAICars, maybeShowResults } from './js/ai.js';
+
 
 // ── CANVAS INIT ────────────────────────────────────────────────────────────────
 state.canvas = document.getElementById('c');
@@ -313,7 +256,6 @@ let last = 0;
 function loop(ts) {
   const dt = ts - last; last = ts;
   update();
-  updateAllAI();
 
   // Sync local car to Firebase at 20Hz
   if (state.roomCode && ts - state.lastSync > 50) {
@@ -337,7 +279,6 @@ function loop(ts) {
   drawObstacles();
   updateAndDrawParticles();
   drawGhost();
-  drawAICars();
   drawRemotePlayers();
   drawCar();
   if (scrolling) state.ctx.restore();
@@ -358,10 +299,9 @@ function showStartPrompt() {
   setTimeout(() => { msg.style.display = 'none'; }, 3000);
 }
 
-function startGame(useAI = false) {
+function startGame() {
   if (state.gameStarted) return;
   state.gameStarted = true;
-  state.aiRaceMode  = !!useAI;
   document.getElementById('soloSetupOverlay').classList.remove('open');
   state.soloSetupActive = false;
   document.getElementById('lobbyScreen').style.display = 'none';
@@ -370,17 +310,10 @@ function startGame(useAI = false) {
   document.getElementById('mpBack').style.display      = 'none';
   document.getElementById('gameWrapper').style.display = 'inline-block';
   if (!state.roomCode) loadGhost();
-  if (state.aiRaceMode) {
-    initAICars();
-    state.car.raceStartTime = performance.now();
-    state.car.lapStartTime  = state.car.raceStartTime;
-    state.car.raceStarted   = true;
-  }
   showStartPrompt();
   requestAnimationFrame(loop);
 }
-state.startGame  = startGame;
-state.initAICars = initAICars;
+state.startGame = startGame;
 
 function goToLobby() {
   cancelAnimationFrame(state.animFrameId);
@@ -398,14 +331,6 @@ function goToLobby() {
   closeMenu();
   clearSplit();
   resetGame();
-
-  state.aiCars         = [];
-  state.aiRaceMode     = false;
-  state.raceResults    = [];
-  state.resultsVisible = false;
-  clearTimeout(state.resultsTimer);
-  state.resultsTimer   = null;
-  document.getElementById('resultsOverlay').classList.remove('open');
 
   document.getElementById('gameWrapper').style.display  = 'none';
   document.getElementById('winnerBanner').style.display = 'none';
@@ -438,47 +363,7 @@ document.getElementById('btnSolo').onclick = () => {
   state.soloSetupActive = true;
 };
 
-// Solo setup overlay logic
-const setupModeTimeTrial = document.getElementById('setupModeTimeTrial');
-const setupModeRaceAI    = document.getElementById('setupModeRaceAI');
-const aiRaceOptions      = document.getElementById('aiRaceOptions');
-setupModeTimeTrial.addEventListener('click', () => {
-  setupModeTimeTrial.classList.add('active');
-  setupModeRaceAI.classList.remove('active');
-  aiRaceOptions.style.display = 'none';
-});
-setupModeRaceAI.addEventListener('click', () => {
-  setupModeRaceAI.classList.add('active');
-  setupModeTimeTrial.classList.remove('active');
-  aiRaceOptions.style.display = 'flex';
-});
-document.querySelectorAll('.setup-num-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.setup-num-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.aiCount = parseInt(btn.dataset.count, 10);
-  });
-});
-document.querySelectorAll('.setup-diff-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.setup-diff-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.aiDifficulty = btn.dataset.diff;
-  });
-});
-document.getElementById('btnStartSolo').addEventListener('click', () => {
-  startGame(setupModeRaceAI.classList.contains('active'));
-});
-
-// Results overlay logic
-document.getElementById('resultsAgain').addEventListener('click', () => {
-  document.getElementById('resultsOverlay').classList.remove('open');
-  document.getElementById('winnerBanner').style.display = 'none';
-  state.resultsVisible = false;
-  state.raceResults    = [];
-  resetGame();
-});
-document.getElementById('resultsMenu').addEventListener('click', goToLobby);
+document.getElementById('btnStartSolo').addEventListener('click', startGame);
 
 document.getElementById('lmapLeft').addEventListener('click',    () => spinLobbyMap(-1));
 document.getElementById('lmapRight').addEventListener('click',   () => spinLobbyMap(1));

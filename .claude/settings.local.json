@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"/c/Users/malcom/Desktop/Projekt/Car game\" log --all --oneline)",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/yuka@0.7.8/build/yuka.module.js\")"
+    ]
+  }
+}

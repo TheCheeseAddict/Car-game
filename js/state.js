@@ -89,14 +89,5 @@ export const state = {
   // Callback set by index.html bootstrap
   startGame: null,
 
-  // AI race
-  aiCars: [],
-  aiCount: 1,
-  aiDifficulty: 'easy',   // 'easy' | 'medium' | 'hard'
-  aiRaceMode: false,
-  raceResults: [],         // [{name, time, position, isPlayer}], filled as cars finish
-  resultsVisible: false,
-  resultsTimer: null,
   soloSetupActive: false,
-  initAICars: null,        // callback registered by index.html
 };
